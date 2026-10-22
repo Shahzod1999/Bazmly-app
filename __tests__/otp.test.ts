@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+/// <reference types="node" />
 /** Mock OTP oqimi (EXPO_PUBLIC_MOCK_OTP default true) */
 jest.mock("expo-secure-store", () => ({ getItemAsync: jest.fn(), setItemAsync: jest.fn(async () => {}), deleteItemAsync: jest.fn(async () => {}) }));
 

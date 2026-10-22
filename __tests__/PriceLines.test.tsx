@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+/// <reference types="node" />
 jest.mock("expo-secure-store", () => ({ getItemAsync: jest.fn(), setItemAsync: jest.fn(), deleteItemAsync: jest.fn() }));
 
 import React from "react";

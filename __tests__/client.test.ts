@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+/// <reference types="node" />
 /**
  * API client: token refresh mutex va 401 oqimi.
  * Web versiyadagi xato: refresh muvaffaqiyatsiz bo'lsa navbatdagi so'rovlar osilib qolardi.

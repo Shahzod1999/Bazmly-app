@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+/// <reference types="node" />
 import { detectCardBrand, formatCardNumber, formatExpiry, isExpiryValid, isLuhnValid, maskPan } from "../src/lib/card";
 
 /** Luhn bo'yicha to'g'ri nazorat raqamini qo'shadi */

@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+/// <reference types="node" />
 /* Jest uchun native modullar mock'lari */
 
 // Reanimated 4 rasmiy mock'i native worklets runtime'ni talab qiladi — ilovada faqat
