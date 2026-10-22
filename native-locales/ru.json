@@ -1,0 +1,6 @@
+{
+  "CFBundleDisplayName": "Bazmly",
+  "NSCameraUsageDescription": "Bazmly использует камеру для сканирования QR-кодов билетов и броней.",
+  "NSLocationWhenInUseUsageDescription": "Bazmly использует ваше местоположение, чтобы показать ближайшие залы и рестораны.",
+  "NSPhotoLibraryUsageDescription": "Bazmly использует галерею для загрузки фото профиля и заведения."
+}

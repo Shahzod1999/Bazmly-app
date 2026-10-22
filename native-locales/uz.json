@@ -1,0 +1,6 @@
+{
+  "CFBundleDisplayName": "Bazmly",
+  "NSCameraUsageDescription": "Bazmly chipta va bron QR kodlarini skanerlash uchun kameradan foydalanadi.",
+  "NSLocationWhenInUseUsageDescription": "Bazmly sizga eng yaqin to'yxona va restoranlarni ko'rsatish uchun joylashuvingizdan foydalanadi.",
+  "NSPhotoLibraryUsageDescription": "Bazmly profil rasmi va muassasa suratlarini yuklash uchun galereyangizga kiradi."
+}
