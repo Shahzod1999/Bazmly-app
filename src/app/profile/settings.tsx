@@ -9,7 +9,6 @@ import { radius } from "../../theme/tokens";
 import { SUPPORTED_LANGUAGES, changeLanguage } from "../../i18n";
 import { usePrefs, type ThemePref } from "../../stores/prefs";
 import { useAuth } from "../../stores/auth";
-import { useLanguages } from "../../api/queries";
 import { getPushPermissionStatus, requestPushPermission } from "../../lib/push";
 import { haptic } from "../../lib/haptics";
 
@@ -18,7 +17,6 @@ export default function SettingsScreen() {
   const { colors } = useTheme();
   const { theme, setTheme } = usePrefs();
   const { status, updateProfile } = useAuth();
-  const languages = useLanguages();
   const [push, setPush] = useState<"granted" | "denied" | "undetermined">("undetermined");
 
   useEffect(() => {
@@ -27,9 +25,8 @@ export default function SettingsScreen() {
 
   const pickLanguage = (code: "uz" | "ru" | "en") => {
     haptic.selection();
+    // Interfeys tili faqat qurilmada saqlanadi — backend'da language_id yo'q (kontent o'zbekcha)
     changeLanguage(code);
-    const langId = languages.data?.find((l) => l.code === code)?.id;
-    if (status === "authed" && langId) void updateProfile({ language_id: langId }).catch(() => {});
   };
 
   const pickTheme = (th: ThemePref) => {

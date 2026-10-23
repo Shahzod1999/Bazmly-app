@@ -12,10 +12,10 @@ import {
   OrderPaymentRead,
   OrderCancel,
   ReceiptRead,
-  BookingListItem,
   BookingRead,
   CheckInRequest,
   SeatedSummary,
+  VenueBookingRead,
 } from "../types";
 
 export const orderService = {
@@ -122,9 +122,9 @@ export const orderService = {
     venueId: number | string,
     day?: string | null,
     status?: string | null,
-  ): Promise<BookingListItem[]> {
+  ): Promise<VenueBookingRead[]> {
     const targetDay = day || new Date().toISOString().split("T")[0];
-    return apiFetch<BookingListItem[]>("/api/v1/venue/bookings", {
+    return apiFetch<VenueBookingRead[]>("/api/v1/venue/bookings", {
       params: {
         venue_id: venueId,
         day: targetDay,
@@ -152,8 +152,8 @@ export const orderService = {
     });
   },
 
-  async checkInBooking(data: CheckInRequest): Promise<BookingRead> {
-    return apiFetch<BookingRead>("/api/v1/venue/bookings/check-in", {
+  async checkInBooking(data: CheckInRequest): Promise<VenueBookingRead> {
+    return apiFetch<VenueBookingRead>("/api/v1/venue/bookings/check-in", {
       method: "POST",
       body: JSON.stringify(data),
     });

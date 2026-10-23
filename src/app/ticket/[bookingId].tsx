@@ -1,6 +1,6 @@
 import React from "react";
 import { View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Share2 } from "lucide-react-native";
 import { Button, ErrorState, Header, IconButton, Screen, Skeleton, Text, Card } from "../../components/ui";
@@ -9,6 +9,7 @@ import { useBooking } from "../../api/queries";
 import { TicketCard } from "../../features/tickets/TicketCard";
 import { useMaxBrightness } from "../../features/tickets/useMaxBrightness";
 import { PriceLines } from "../../features/booking/PriceLines";
+import { DepositNotice } from "../../features/booking/DepositNotice";
 import { shareLink } from "../../lib/linking";
 import { useIsAuthed } from "../../stores/auth";
 import { requireAuth } from "../../features/auth/redirect";
@@ -18,7 +19,6 @@ export default function TicketScreen() {
   const id = Number(bookingId);
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const router = useRouter();
   const authed = useIsAuthed();
   const q = useBooking(id);
   useMaxBrightness(!!q.data);
@@ -40,24 +40,12 @@ export default function TicketScreen() {
   }
 
   const b = q.data?.booking;
-  const payable = b && Number(b.deposit_amount) > 0 && b.status === "pending";
 
   return (
     <Screen
       scroll
       onRefresh={() => q.refetch()}
       refreshing={q.isRefetching}
-      footer={
-        payable ? (
-          <Button
-            title={t("booking.payDeposit")}
-            size="lg"
-            onPress={() =>
-              router.push({ pathname: "/payment/[bookingId]", params: { bookingId: String(id) } })
-            }
-          />
-        ) : undefined
-      }
     >
       <Header
         title={t("tickets.official")}
@@ -84,6 +72,7 @@ export default function TicketScreen() {
           <Card>
             <PriceLines detail={q.data} />
           </Card>
+          <DepositNotice booking={q.data.booking} />
         </View>
       )}
     </Screen>

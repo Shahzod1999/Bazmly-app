@@ -1,6 +1,5 @@
 import { apiFetch } from "../client";
 import {
-  LanguageRead,
   RegionRead,
   RegionCreate,
   RegionUpdate,
@@ -12,9 +11,6 @@ import {
 
 export const geoService = {
   // Languages
-  async getLanguages(): Promise<LanguageRead[]> {
-    return apiFetch<LanguageRead[]>("/api/v1/languages", { skipAuth: true });
-  },
 
   // Regions
   async getRegions(): Promise<RegionRead[]> {

@@ -74,6 +74,9 @@ export default function VenueScreen() {
   const detail = venueQ.data;
   const v = detail?.venue;
   const isHall = detail?.venue_type === "toyxona" || v?.venue_type === "toyxona";
+  // To'yxona narxi bosqichlardan: eng arzon bosqich "…dan" sifatida ko'rsatiladi
+  const tierPrices = (detail?.guest_tiers ?? []).map((tr) => Number(tr.base_price)).filter((n) => n > 0);
+  const priceFrom = tierPrices.length ? String(Math.min(...tierPrices)) : (v?.base_price ?? null);
   const menu = useVenueMenu(!isHall && tab === "menu" ? id : 0);
   const reviews = useReviews(tab === "reviews" ? id : 0);
 
@@ -169,13 +172,13 @@ export default function VenueScreen() {
       refreshing={venueQ.isRefetching}
       footer={
         <View style={styles.footer}>
-          {isHall && v.base_price ? (
+          {isHall && priceFrom ? (
             <View style={{ flex: 1 }}>
               <Text variant="caption" color="textMuted">
                 {t("venue.price")}
               </Text>
               <Text variant="h2" numberOfLines={1} tabular>
-                {formatMoney(v.base_price, v.currency)}
+                {t("home.fromPrice", { price: formatMoney(priceFrom, v.currency) })}
               </Text>
             </View>
           ) : null}
@@ -243,7 +246,7 @@ export default function VenueScreen() {
             {v.name}
           </Text>
           <StatusDot
-            open={detail.is_open_now}
+            open={!!detail.is_open_now}
             label={detail.is_open_now ? t("common.open") : t("common.closed")}
           />
         </View>
@@ -264,10 +267,10 @@ export default function VenueScreen() {
               }
             />
           ) : null}
-          {v.base_price ? (
+          {priceFrom ? (
             <InfoLine
               icon={<Wallet size={18} color={colors.primary} />}
-              text={`${t("venue.price")}: ${formatMoney(v.base_price, v.currency)}`}
+              text={`${t("venue.price")}: ${t("home.fromPrice", { price: formatMoney(priceFrom, v.currency) })}`}
             />
           ) : null}
           {v.requires_deposit && v.deposit_percent ? (
@@ -413,25 +416,41 @@ export default function VenueScreen() {
             ) : !menu.data?.length ? (
               <EmptyState title={t("venue.menuEmpty")} />
             ) : (
-              <View style={styles.menuGrid}>
-                {menu.data.map((m) => (
-                  <Card key={m.id} padded={false} style={styles.menuCard}>
-                    <Image
-                      source={foodImage(m.id, m.photo_url)}
-                      style={styles.menuImg}
-                      contentFit="cover"
-                      transition={150}
-                    />
-                    <View style={{ padding: 12, gap: 4 }}>
-                      <Text variant="h3" tabular>
-                        {formatMoney(m.effective_price, m.currency)}
-                      </Text>
-                      <Text variant="small" color="textMuted" numberOfLines={2}>
-                        {m.name}
-                      </Text>
-                      {!m.is_available ? <Badge label={t("common.closed")} tone="danger" /> : null}
+              <View style={{ gap: 20 }}>
+                {groupByCategory(menu.data).map(([category, items]) => (
+                  <View key={category} style={{ gap: 10 }}>
+                    <Text variant="h3">{category}</Text>
+                    <View style={styles.menuGrid}>
+                      {items.map((m) => (
+                        <Card key={m.id} padded={false} style={styles.menuCard}>
+                          <Image
+                            source={foodImage(m.id, m.photo_url)}
+                            style={styles.menuImg}
+                            contentFit="cover"
+                            transition={150}
+                          />
+                          <View style={{ padding: 12, gap: 4 }}>
+                            <Text variant="h3" tabular numberOfLines={1}>
+                              {m.effective_price
+                                ? formatMoney(m.effective_price, m.currency)
+                                : m.price_from
+                                  ? t("home.fromPrice", { price: formatMoney(m.price_from, m.currency) })
+                                  : "—"}
+                            </Text>
+                            <Text variant="smallMedium" numberOfLines={2}>
+                              {m.name}
+                            </Text>
+                            {m.description ? (
+                              <Text variant="caption" color="textMuted" numberOfLines={2}>
+                                {m.description}
+                              </Text>
+                            ) : null}
+                            {!m.is_available ? <Badge label={t("venue.unavailable")} tone="danger" /> : null}
+                          </View>
+                        </Card>
+                      ))}
                     </View>
-                  </Card>
+                  </View>
                 ))}
               </View>
             )}
@@ -532,6 +551,17 @@ function InfoLine({ icon, text }: { icon: React.ReactNode; text: string }) {
       </Text>
     </View>
   );
+}
+
+/** Menyu elementlarini backend kategoriyasi bo'yicha, kelish tartibida guruhlaydi */
+function groupByCategory<T extends { category_name: string }>(items: T[]): [string, T[]][] {
+  const map = new Map<string, T[]>();
+  for (const it of items) {
+    const key = it.category_name || "—";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(it);
+  }
+  return [...map.entries()];
 }
 
 const styles = StyleSheet.create({

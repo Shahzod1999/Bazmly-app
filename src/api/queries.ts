@@ -6,7 +6,6 @@ import {
   geoService,
   orderService,
   partnerService,
-  paymentService,
   userService,
   venueService,
   BazmlyApiError,
@@ -58,8 +57,6 @@ export const qk = {
   regions: ["regions"] as const,
   districts: (regionId: number) => ["districts", regionId] as const,
   recentLocations: ["recentLocations"] as const,
-  languages: ["languages"] as const,
-  cards: ["cards"] as const,
   friends: ["friends"] as const,
   friendRequests: ["friendRequests"] as const,
   amenities: ["amenities"] as const,
@@ -313,13 +310,6 @@ export function useRecentLocations() {
   });
 }
 
-export function useLanguages() {
-  return useQuery({
-    queryKey: qk.languages,
-    queryFn: () => geoService.getLanguages(),
-    staleTime: 86_400_000,
-  });
-}
 
 export function useAmenities() {
   return useQuery({
@@ -329,18 +319,7 @@ export function useAmenities() {
   });
 }
 
-export function useCards() {
-  const authed = useIsAuthed();
-  return useQuery({ queryKey: qk.cards, queryFn: () => paymentService.listCards(), enabled: authed });
-}
 
-export function useDeleteCard() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => paymentService.deleteCard(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.cards }),
-  });
-}
 
 export function useFriends() {
   const authed = useIsAuthed();

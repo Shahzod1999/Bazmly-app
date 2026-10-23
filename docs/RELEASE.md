@@ -37,14 +37,14 @@ npx eas-cli@latest build --profile development --platform ios
 npx expo start --dev-client
 ```
 
-Development va preview build'larda SMS kod va to'lov **mock** rejimda ishlaydi: SMS kod `111111`, karta kodi `111111`. Qolgan hamma narsa real backend'ga ulanadi.
+Barcha build'lar real backend'ga ulanadi (`EXPO_PUBLIC_API_BASE_URL`). Mock rejim yo'q.
 
 Jamoaga tarqatish uchun: `--profile preview` (o'rnatiladigan ilova, dev serversiz).
 
 ## 2. Production
 
 Talablar:
-1. Backend `BACKEND_CONTRACT.md` dagi §1 (SMS OTP) va §2 (to'lov) endpointlarini chiqargan bo'lishi kerak. Production profilida mock **o'chiq**.
+1. Backend'da push yuborish ulangan bo'lishi kerak (`BACKEND_CONTRACT.md` → 1-masala). Aks holda mijozlar bron tasdiqlanganini bilmaydi.
 2. Domen (`APP_DOMAIN`, standart `bazmly.uz`) tasdiqlangan bo'lishi va universal link fayllari joylangan bo'lishi kerak:
    - `https://bazmly.uz/.well-known/apple-app-site-association`
    - `https://bazmly.uz/.well-known/assetlinks.json`
@@ -65,22 +65,13 @@ npx eas-cli@latest submit --profile production --platform android
 | Akkauntni ilova ichida o'chirish (Apple 5.1.1(v)) | ✅ Profil → Akkauntni o'chirish (`DELETE /users/me`) |
 | Ruxsat matnlari (kamera, joylashuv, galereya) — sababi bilan | ✅ `app.config.ts`, `native-locales/*.json` (uz/ru/en) |
 | Maxfiylik siyosati URL | ⏳ Saytda sahifa kerak; App Store Connect va Play Console'ga kiritiladi |
-| Reviewer uchun demo akkaunt | ⏳ Backend'da test raqam + doimiy OTP kod (masalan `+998 90 000 00 00` / `000000`) yarating va "App Review Information" ga yozing |
+| Reviewer uchun demo akkaunt | ⏳ Backend'da test raqam va parol bilan akkaunt (masalan `+998 90 000 00 00`) yarating va "App Review Information" ga yozing |
 | Play Console: Data safety formasi | ⏳ To'planadi: telefon, ism, joylashuv (taxminiy), qurilma ID, to'lov ma'lumoti (provayder orqali) |
 | Shifrlash e'loni | ✅ `ITSAppUsesNonExemptEncryption: false` |
 | Hamkor qismi | Reviewer'ga hamkor akkaunti ham bering (xodim login + parol), aks holda "yashirin funksiya" deb rad etilishi mumkin |
 | Ikonka / splash | ⏳ `assets/icon.png` (1024×1024, shaffofsiz), `assets/splash-icon.png`, `assets/android-icon-*.png` ni yakuniy logo bilan almashtiring |
 
-## 4. Android SMS avtomatik o'qish (SMS Retriever)
-
-Production keystore yaratilgach app hash'ni hisoblang va backend SMS matnining oxiriga qo'shing (`BACKEND_CONTRACT.md` §1.1):
-
-```bash
-keytool -exportcert -alias <alias> -keystore <keystore.jks> | xxd -p | tr -d "[:space:]" | \
-  echo -n "uz.bazmly.app $(cat)" | sha256sum | tr -d "[:space:]-" | xxd -r -p | base64 | cut -c1-11
-```
-
-## 5. Universal link fayllari
+## 4. Universal link fayllari
 
 `apple-app-site-association` (kengaytmasiz, `Content-Type: application/json`):
 
@@ -112,6 +103,6 @@ keytool -exportcert -alias <alias> -keystore <keystore.jks> | xxd -p | tr -d "[:
 }]
 ```
 
-## 6. Versiya
+## 5. Versiya
 
 `appVersionSource: remote` — build raqamlari EAS'da avtomatik oshadi. Foydalanuvchiga ko'rinadigan versiya `app.config.ts` → `version`.

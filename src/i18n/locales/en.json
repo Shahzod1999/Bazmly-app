@@ -42,8 +42,24 @@
     "uzs": "UZS"
   },
   "weekdays": {
-    "short": ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
-    "long": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    "short": [
+      "Mo",
+      "Tu",
+      "We",
+      "Th",
+      "Fr",
+      "Sa",
+      "Su"
+    ],
+    "long": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday"
+    ]
   },
   "months": [
     "January",
@@ -73,22 +89,11 @@
   },
   "auth": {
     "title": "Sign in",
-    "subtitle": "Enter your phone number — we'll send you an SMS code",
+    "subtitle": "Enter your phone number. New here? You'll create an account",
     "phoneLabel": "Phone number",
     "phonePlaceholder": "90 123 45 67",
     "phoneInvalid": "Invalid phone number",
-    "sendCode": "Get code",
     "terms": "By continuing you agree to the Terms of Use and Privacy Policy",
-    "otpTitle": "Enter the SMS code",
-    "otpSubtitle": "A {{length}}-digit code was sent to {{phone}}",
-    "otpResendIn": "Resend in {{seconds}} s",
-    "otpResend": "Resend code",
-    "otpWrongNumber": "Change number",
-    "otpMockHint": "Test mode: code {{code}}",
-    "otp_invalid": "Wrong code",
-    "otp_expired": "The code has expired. Request a new one.",
-    "otp_attempts_exceeded": "Too many attempts. Request a new code.",
-    "otp_rate_limited": "Too many requests. Try again in {{seconds}} seconds.",
     "nameTitle": "What's your name?",
     "nameSubtitle": "Venue staff will see this name on your bookings",
     "firstName": "First name",
@@ -102,8 +107,20 @@
     "login": "Login",
     "password": "Password",
     "partnerLink": "Add your venue to Bazmly",
-    "socialSoon": "Sign in with Apple and Google coming soon",
-    "sessionExpired": "Session expired. Please sign in again."
+    "sessionExpired": "Session expired. Please sign in again.",
+    "continue": "Continue",
+    "signIn": "Sign in",
+    "passwordTitle": "Enter your password",
+    "passwordSubtitle": "The account for {{phone}} has a password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "registerTitle": "Create account",
+    "registerSubtitle": "New account for {{phone}}",
+    "createAccount": "Create account",
+    "passwordOptional": "Password (optional)",
+    "passwordMin": "At least {{count}} characters",
+    "passwordTooShort": "Password must be at least {{count}} characters",
+    "passwordWhy": "Sign-in doesn't use SMS codes. With a password, nobody who knows your number can open your account. You can also set it later in Profile → Password."
   },
   "tabs": {
     "home": "Home",
@@ -197,7 +214,8 @@
     "shareText": "{{name}} — see it on Bazmly: {{url}}",
     "totalPrice": "Total price",
     "depositPercent": "Deposit: {{value}}%",
-    "notFound": "Page not found"
+    "notFound": "Page not found",
+    "unavailable": "Unavailable"
   },
   "booking": {
     "title": "Booking",
@@ -242,7 +260,16 @@
     "created": "Booking created",
     "payDeposit": "Pay deposit",
     "draftRestored": "Your previous selection was restored",
-    "selectDateFirst": "Choose a date first"
+    "selectDateFirst": "Choose a date first",
+    "requestSent": "Booking request sent",
+    "requestSentText": "You'll get a notification when the venue confirms. Your ticket is in the Voucher tab.",
+    "depositAmountLine": "Deposit: {{amount}}",
+    "depositOffline": "Not paid in the app — the venue will arrange payment with you when confirming the booking.",
+    "tiersTitle": "Price depends on guest count",
+    "tierFrom": "{{min}}+ guests",
+    "tierNone": "No price for this guest count — pick one of the ranges above",
+    "tiersMissing": "This hall hasn't set its prices yet, so online booking isn't available. Please call the venue.",
+    "hallRental": "Hall rental"
   },
   "payment": {
     "title": "Payment",
@@ -316,8 +343,8 @@
     "checked_in": "Checked in",
     "completed": "Completed",
     "cancelled": "Cancelled",
-    "rejected": "Rejected",
-    "no_show": "No-show"
+    "no_show": "No-show",
+    "expired": "Expired"
   },
   "scan": {
     "title": "Scanner",
@@ -336,7 +363,6 @@
   "profile": {
     "title": "Profile",
     "editProfile": "Edit profile",
-    "myCards": "My cards",
     "favorites": "Favorites",
     "favoritesEmpty": "No favorite venues",
     "messages": "Messages",
@@ -374,7 +400,16 @@
     "pushDisabledHint": "Notifications are turned off in phone settings",
     "privacy": "Privacy policy",
     "terms": "Terms of use",
-    "support": "Support"
+    "support": "Support",
+    "password": "Password",
+    "passwordSaved": "Password saved",
+    "passwordOn": "Your account is protected with a password.",
+    "passwordOff": "No password set: anyone who knows your number can sign in. We recommend setting one.",
+    "currentPassword": "Current password",
+    "currentPasswordRequired": "Enter your current password",
+    "newPassword": "New password",
+    "repeatPassword": "Repeat password",
+    "passwordMismatch": "Passwords don't match"
   },
   "faq": {
     "q1": "How do I book?",

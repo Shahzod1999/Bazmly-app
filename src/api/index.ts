@@ -1,5 +1,4 @@
 export * from "./types";
-export * from "./types.pending";
 export * from "./client";
 export * from "./services/authService";
 export * from "./services/userService";
@@ -10,5 +9,3 @@ export * from "./services/bookingService";
 export * from "./services/orderService";
 export * from "./services/partnerService";
 export * from "./services/engagementService";
-export * from "./services/otpService";
-export * from "./services/paymentService";

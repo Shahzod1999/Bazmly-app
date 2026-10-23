@@ -36,29 +36,23 @@ export function useVenueList(debouncedQuery: string) {
     only_open_now: filters.onlyOpen ? true : undefined,
     latitude: coords?.latitude,
     longitude: coords?.longitude,
+    // Backend saralashi: rating (standart) | price | distance (koordinata bilan)
+    sort:
+      filters.sort === "price"
+        ? "price"
+        : filters.sort === "distance" && coords
+          ? "distance"
+          : filters.sort === "rating"
+            ? "rating"
+            : undefined,
   };
   const query = useVenueSearch(params);
 
-  // Saralash: backend `sort` qiymatlari hujjatlashtirilmagan (BACKEND_CONTRACT §6) —
-  // hozircha yuklangan natijalar mijoz tomonida saralanadi.
+  // Saralash backend'da (sahifalash bilan to'g'ri ishlashi uchun); bu yerda faqat takrorlarni olib tashlaymiz
   const items = useMemo(() => {
-    const all: VenueListItem[] = (query.data?.pages ?? []).flatMap(
-      (p) => p.items,
-    );
-    const unique = Array.from(new Map(all.map((v) => [v.id, v])).values());
-    switch (filters.sort) {
-      case "rating":
-        return [...unique].sort((a, b) => Number(b.rating_avg) - Number(a.rating_avg));
-      case "price":
-        return [...unique].sort(
-          (a, b) => Number(a.base_price ?? Infinity) - Number(b.base_price ?? Infinity),
-        );
-      case "distance":
-        return [...unique].sort((a, b) => (a.distance_m ?? Infinity) - (b.distance_m ?? Infinity));
-      default:
-        return unique;
-    }
-  }, [query.data, filters.sort]);
+    const all: VenueListItem[] = (query.data?.pages ?? []).flatMap((p) => p.items);
+    return Array.from(new Map(all.map((v) => [v.id, v])).values());
+  }, [query.data]);
 
   return { ...query, items, filters };
 }

@@ -12,8 +12,8 @@ import type { BookingOwnerDetail } from "../src/api";
 const detail = {
   booking: { total_amount: "27500000.00", deposit_amount: "2750000.00", currency: "UZS" },
   price_lines: [
-    { id: 2, sort_order: 2, line_type: "service", label_snapshot: "Tayyor dasturxon", unit_price: "100000", quantity: 250, amount: "25000000.00" },
-    { id: 1, sort_order: 1, line_type: "table_fee", label_snapshot: "Zal ijarasi", unit_price: "2500000", quantity: 1, amount: "2500000.00" },
+    { id: 2, sort_order: 2, line_type: "service_logistics", label_snapshot: "Tayyor dasturxon", unit_price: "100000", quantity: 250, amount: "25000000.00" },
+    { id: 1, sort_order: 1, line_type: "hall_rental", label_snapshot: "Zal ijarasi", unit_price: "2500000", quantity: 1, amount: "2500000.00" },
     { id: 3, sort_order: 3, line_type: "deposit", label_snapshot: "Depozit", unit_price: "0", quantity: 1, amount: "2750000.00" },
   ],
 } as unknown as BookingOwnerDetail;

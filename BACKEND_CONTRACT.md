@@ -1,252 +1,97 @@
-# Bazmly — mobil ilova uchun backend shartnomasi
+# Backend bilan integratsiya
 
-Bu hujjat **backend'da hali mavjud bo'lmagan** endpointlarni tavsiflaydi. Mobil ilova ularni hozir mock bilan ishlatadi (`EXPO_PUBLIC_MOCK_OTP=true`, `EXPO_PUBLIC_MOCK_PAYMENTS=true`). Backend tayyor bo'lgach flaglar `false` qilinadi — ilova kodi o'zgarmaydi.
+Ilova **Patriotic20/bazmly-backend** (FastAPI) ga ulangan. Railway production shu repo'dan deploy qilinadi. Monorepo `Patriotic20/bazfind` ning `main` branchi eskirgan (2026-08). Haqiqiy kod `bazmly-backend` da: monorepo'ning `frontend-from-rar` branchidan sinxronlanadi.
 
-- Tiplar: `src/api/types.pending.ts`
-- Mock implementatsiya: `src/api/services/otpService.ts`, `src/api/services/paymentService.ts`
-- Bazaviy URL: `https://bazmly-backend-production.up.railway.app`, prefiks `/api/v1`
-- Xato formati — mavjud API bilan bir xil:
+## Tiplar backend'dan generatsiya qilinadi
 
-```json
-{ "code": "otp_invalid", "message": "Kod noto'g'ri.", "details": null, "request_id": "..." }
+`src/api/types.ts` qo'lda yozilmaydi. U backend'ning OpenAPI sxemasidan generatsiya qilinadi:
+
+```bash
+npm run api:types                                                                    # repo'dagi api/openapi.json dan
+npm run api:types -- https://bazmly-backend-production.up.railway.app/api/openapi.json  # ishlab turgan serverdan
+npm run api:types -- http://localhost:8000/api/openapi.json                             # lokal backend'dan
 ```
 
-`message` foydalanuvchiga ko'rsatiladi, shuning uchun `Accept-Language` (`uz` | `ru` | `en`) sarlavhasiga qarab tarjima qilingan bo'lishi kerak. Ilova har bir so'rovda bu sarlavhani yuboradi.
+Server ishlamasa, sxemani backend kodidan olish mumkin (`bazmly-backend` papkasida):
 
----
-
-## §1. SMS OTP orqali kirish (Eskiz.uz)
-
-Telegram `initData` native ilovada ishlamaydi, shu sababli asosiy kirish usuli — telefon + SMS kod. Ro'yxatdan o'tish va kirish **bitta oqim**.
-
-### 1.1 `POST /auth/otp/send`
-
-```json
-// so'rov
-{ "phone": "+998901234567", "purpose": "login" }
-
-// 200
-{ "request_id": "b6f1…", "expires_in_seconds": 120, "resend_after_seconds": 60, "code_length": 6 }
+```bash
+uv run python -c "import json; from app.main import app; print(json.dumps(app.openapi()))" > openapi.json
+npm run api:types -- openapi.json
 ```
 
-| Status | `code` | Qachon |
-|---|---|---|
-| 400 | `phone_invalid` | Raqam `+998XXXXXXXXX` formatida emas |
-| 429 | `otp_rate_limited` | Limit oshdi; `details.retry_after_seconds` majburiy |
-| 403 | `user_blocked` | Foydalanuvchi bloklangan |
+Manba URL yoki fayl berilsa, sxema `api/openapi.json` ga ham saqlanadi. Shunda backend'dagi har bir o'zgarish git diff'da ko'rinadi. Keyin `npx tsc --noEmit` ilovaning qaysi joyi yangi sxemaga mos kelmayotganini ko'rsatadi.
 
-Talablar:
-- Kod 6 xonali, kriptografik tasodifiy; bazada faqat hash saqlanadi.
-- Muddati 120 s. Qayta yuborish 60 s dan keyin.
-- Rate limit: bitta raqamga 1 daqiqada 1 ta, 1 soatda 5 ta; bitta IP'ga 1 soatda 20 ta.
-- SMS matni Eskiz'da tasdiqlangan shablon bo'yicha. Android avtomatik o'qishi uchun oxirida app hash bo'lsin (SMS Retriever):
-  `Bazmly: tasdiqlash kodi 123456. Hech kimga bermang.\n<APP_HASH>`
-  App hash EAS build'dan keyin olinadi (`docs/RELEASE.md`).
+Swagger: `/api/docs`. Mijoz ilovasi uchun alohida hujjat `/api/docs/app` da, boshqaruv paneli uchun `/api/docs/admin` da.
 
-### 1.2 `POST /auth/otp/verify`
+## Backend qarorlari va ilovadagi aksi
 
-```json
-// so'rov
-{ "request_id": "b6f1…", "phone": "+998901234567", "code": "123456" }
-
-// 200 — TokenPair + 2 ta maydon
-{
-  "access_token": "…", "refresh_token": "…", "token_type": "bearer",
-  "expires_in_seconds": 3600, "user_id": 42,
-  "profile_completed": false,
-  "is_new_user": true
-}
-```
-
-| Status | `code` | Qachon |
-|---|---|---|
-| 400 | `otp_invalid` | Kod noto'g'ri |
-| 400 | `otp_expired` | Muddat o'tgan yoki `request_id` topilmadi |
-| 400 | `otp_attempts_exceeded` | 5 ta noto'g'ri urinish; `request_id` bekor qilinadi |
-
-Xulq:
-- Raqam bazada bo'lmasa — foydalanuvchi `status: pending_profile`, `role: customer` bilan yaratiladi va `is_new_user: true` qaytadi.
-- `profile_completed: false` bo'lsa, ilova ism-familiya so'raydi va mavjud `POST /auth/complete-profile` ni chaqiradi.
-- Muvaffaqiyatli tekshiruvdan keyin kod qayta ishlatilmaydi.
-
-> **Mock rejimda** kod har doim `111111`. Tekshiruvdan keyin ilova mavjud `POST /auth/phone-check` va `POST /auth/login {phone}` endpointlariga murojaat qiladi; yangi raqam uchun esa ism kiritilgach `POST /auth/register` chaqiriladi. Backend `password_required: true` qaytarsa, mock kirish ishlamaydi. Bu faqat sinov uchun.
-
-### 1.3 Mavjud endpointlar (o'zgarmaydi)
-
-- `POST /auth/staff-login` — hamkor xodimlari login + parol bilan kiradi.
-- `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/complete-profile`.
-
----
-
-## §2. Karta saqlash va depozit to'lovi (UzCard / Humo)
-
-To'lov ilova ichidagi forma orqali qilinadi: karta qo'shiladi → bank SMS kodi → karta saqlanadi → depozit → SMS kod.
-**Karta raqami faqat backend'ga yuboriladi.** U to'lov provayderida (masalan, ATMOS, Multicard, Payme Business, Click Pass) tokenlashtiriladi. Bazada faqat token va maskali raqam saqlanadi. Ilova karta raqamini saqlamaydi va loglamaydi.
-
-### 2.1 `POST /payments/cards`
-
-```json
-// so'rov
-{ "card_number": "8600123412341234", "expiry": "12/28" }
-
-// 200
-{ "card_request_id": "c_9a…", "phone_mask": "+998 90 *** ** 67", "resend_after_seconds": 60 }
-```
-
-Provayder karta egasining telefoniga SMS kod yuboradi.
-
-### 2.2 `POST /payments/cards/verify`
-
-```json
-// so'rov
-{ "card_request_id": "c_9a…", "code": "123456" }
-
-// 200 — SavedCard
-{
-  "id": 7,
-  "masked_pan": "8600 **** **** 1234",
-  "brand": "uzcard",
-  "expiry": "12/28",
-  "holder_name": "SHAHZOD B.",
-  "is_default": true
-}
-```
-
-Foydalanuvchining birinchi kartasi avtomatik `is_default: true` bo'ladi.
-
-### 2.3 `GET /payments/cards` → `SavedCard[]`
-### 2.4 `DELETE /payments/cards/{id}` → `204`
-
-Bekor qilinmagan bron to'lovi jarayonida bo'lsa ham karta o'chiriladi. Provayderdagi token ham bekor qilinadi.
-
-### 2.5 `POST /bookings/{id}/deposit`
-
-```json
-// so'rov
-{ "card_id": 7 }
-
-// 200
-{ "payment_id": "p_51…", "status": "pending_otp", "amount": "2500000.00", "currency": "UZS", "phone_mask": "+998 90 *** ** 67" }
-```
-
-- Summa **backend'da** hisoblanadi: `booking.deposit_amount` (venue `deposit_percent` asosida). Ilova summa yubormaydi.
-- Provayder SMS talab qilmasa, darhol `status: "paid"` qaytariladi.
-- Bitta bron uchun bir vaqtda faqat bitta faol to'lov bo'ladi. Takroriy chaqiruv o'sha `payment_id` ni qaytaradi (idempotentlik).
-
-### 2.6 `POST /payments/{payment_id}/confirm`
-
-```json
-// so'rov
-{ "code": "123456" }
-
-// 200
-{ "status": "paid", "booking": { /* BookingOwnerDetail — yangilangan, status: "confirmed" yoki "pending" */ } }
-```
-
-### Xato kodlari (§2)
-
-| `code` | Ma'nosi |
+| Qaror (`DECISIONS.md`) | Ilovada |
 |---|---|
-| `card_invalid` | Raqam noto'g'ri (Luhn / BIN) |
-| `card_expired` | Muddati o'tgan |
-| `card_not_supported` | UzCard/Humo emas |
-| `card_otp_invalid` / `card_otp_expired` | SMS kod xato / muddati o'tgan |
-| `insufficient_funds` | Mablag' yetarli emas |
-| `payment_declined` | Bank rad etdi |
-| `booking_not_payable` | Bron bekor qilingan, allaqachon to'langan yoki depozit talab qilinmaydi |
+| **Part 9: SMS/OTP yo'q, telefon bilan kirish.** Parol ixtiyoriy; o'rnatilgan bo'lsa, kirishda talab qilinadi | Telefon → `POST /auth/phone-check`. Natijaga qarab parol ekrani (`password_required`), to'g'ridan-to'g'ri kirish yoki ro'yxatdan o'tish (ism, familiya va ixtiyoriy parol). Ro'yxatdan o'tish va Profil → Parol ekranlarida parol qo'yish tavsiya qilinadi, sababi tushuntiriladi |
+| **Part 9: parol o'rnatilganda barcha sessiyalar bekor qilinadi** | Parol saqlangach ilova yangi parol bilan avtomatik qayta kiradi |
+| **Part 10: onlayn to'lov va promokodlar yo'q** | Karta saqlash ham, depozit to'lash ham yo'q. Bron `pending` holatida yaratiladi. Backend hisoblagan depozit miqdori ko'rsatiladi va onlayn to'lanmasligi aytiladi |
+| Interfeys tili backend'da saqlanmaydi (`/languages`, `language_id` olib tashlangan) | Til faqat qurilmada saqlanadi |
+| To'yxona narxi mehmonlar soniga qarab bosqichdan olinadi (`guest_tiers`) | Bron oqimida bosqichlar va narxlar ko'rsatiladi, mehmonlar soni shu oraliqlarda cheklanadi. Bosqich bo'lmasa onlayn bron yopiq (backend baribir `capacity_exceeded` qaytaradi) |
+| Google orqali kirish (`DECISIONS.md` Part 9 da tilga olingan) | `bazmly-backend` da bunday endpoint yo'q, shuning uchun ilovada ham yo'q. Qo'shilsa, ilovaga Google client ID'lari bilan ulanadi |
 
-BIN qoidasi (ilova ham tekshiradi): `8600`, `5614` → UzCard; `9860` → Humo.
+## Backend uchun ochiq masalalar
 
-> **Mock rejimda** kartalar faqat maskali ko'rinishda qurilma xotirasida saqlanadi, SMS kod `111111`. To'lovdan keyin bron mavjud `GET /bookings/{id}` dan qayta o'qiladi.
+### 1. Push haqiqatda yuborilmaydi (muhim)
 
-### Webhook (tavsiya)
+`app/core/transports.py` da standart `LoggingPushSender` faqat log yozadi. Ilova `POST /users/me/devices` ga **Expo push token** (`ExponentPushToken[...]`) yuboradi. Uni yetkazish uchun sender quyidagicha bo'lishi mumkin:
 
-Provayder to'lov holatini webhook orqali yuborsa, backend bronni `confirmed` ga o'tkazishi va mijozga push yuborishi kerak (§3, `type: "booking_paid"`).
+```python
+class ExpoPushSender:
+    URL = "https://exp.host/--/api/v2/push/send"
 
----
+    async def send(self, tokens: list[str], title: str, body: str, data: dict | None = None) -> None:
+        messages = [{"to": t, "title": title, "body": body, "data": data or {}, "sound": "default",
+                     "channelId": "bookings"} for t in tokens if t.startswith("ExponentPushToken")]
+        if not messages:
+            return
+        async with httpx.AsyncClient(timeout=10) as client:
+            for i in range(0, len(messages), 100):  # Expo: bir so'rovda 100 tagacha
+                await client.post(self.URL, json=messages[i:i + 100])
 
-## §3. Push bildirishnomalar
-
-`POST /users/me/devices` **mavjud**. Ilova yuboradi:
-
-```json
-{ "device_uuid": "lq8…", "platform": "ios", "app_version": "1.0.0", "push_token": "ExponentPushToken[xxxx]" }
+# lifespan'da: set_push_sender(ExpoPushSender())
 ```
 
-- Ilova standart holatda **Expo push token** yuboradi. Backend xabarni Expo Push API orqali jo'natadi: `POST https://exp.host/--/api/v2/push/send`.
-- Backend FCM/APNs bilan to'g'ridan-to'g'ri ishlashni tanlasa, ilovada `EXPO_PUBLIC_PUSH_TOKEN_KIND=native` qo'yiladi va native token yuboriladi.
-- Logout'da ilova shu `device_uuid` bilan `push_token: null` yuboradi. Backend bu qurilmaga yuborishni to'xtatishi kerak.
-- Kerakli Android kanallari: `bookings` (yuqori muhimlik) va `promotions`. Ularni `channelId` maydonida yuboring.
+Push'da `data` ham bo'lishi kerak, shunda bildirishnoma bosilganda ilova kerakli ekranni ochadi:
 
-Payload (`data`) — ilova shu maydonlar bo'yicha ekran ochadi:
-
-| `data.type` | Maydonlar | Ochiladigan ekran |
+| `data.type` | Maydonlar | Ilova ochadigan ekran |
 |---|---|---|
-| `booking_confirmed`, `booking_rejected`, `booking_paid`, `booking_reminder`, `booking_auto_cancel` | `booking_id` | Chipta |
-| `new_booking`, `partner_*` | `booking_id` | Hamkor → Bronlar |
+| `booking_confirmed`, `booking_rejected`, `booking_reminder` | `booking_id` | Chipta |
+| `new_booking` (hamkorga) | `booking_id` | Hamkor → Bronlar |
 | `message` | `conversation_id` | Chat |
-| `promo` | `venue_id` yoki `url` (`/venue/12`) | Venue / berilgan yo'l |
 
----
+FCM/APNs bilan to'g'ridan-to'g'ri ishlash tanlansa, ilovada `EXPO_PUBLIC_PUSH_TOKEN_KIND=native` qo'yiladi va native token yuboriladi.
 
-## §4. Venue suratlarini yuklash (taklif)
+### 2. Depozit qanday to'lanadi?
 
-Hamkor ro'yxatdan o'tganda suratlarni tanlaydi, lekin yuklash API'si yo'q, shuning uchun hozircha ular yuborilmaydi.
+Backend depozitni hisoblaydi (`deposit_amount`, narx qatori `deposit`). `deposit_paid_at` ham bor, lekin uni belgilaydigan endpoint yo'q. Mijozga hozir "to'lov tartibini muassasa kelishadi" deb aytilyapti. Agar muassasa depozitni olganini panelda belgilashi kerak bo'lsa (masalan, `POST /venue/bookings/{id}/deposit-received`), hamkor ilovasiga tugma qo'shiladi.
+
+### 3. Venue suratlarini yuklash
+
+`PATCH /venue/venues/{id}/onboarding/media-done` bor, lekin suratni yuklaydigan endpoint yo'q. Shu sababli hamkor ro'yxatdan o'tishda tanlagan suratlar yuborilmaydi. Taklif:
 
 ```
-POST /venue/venues/{id}/photos      multipart/form-data: file (jpeg/webp, ≤ 5 MB), sort_order?
-  → 201 VenuePhotoRead
+POST   /venue/venues/{id}/photos          multipart: file (jpeg/webp ≤ 5 MB) → 201 VenuePhotoRead
 DELETE /venue/venues/{id}/photos/{photo_id} → 204
-PATCH  /venue/venues/{id}/photos/order  { photo_ids: number[] } → 200 VenuePhotoRead[]
 ```
 
-Ilova suratni yuborishdan oldin 1600 px gacha kichraytiradi va siqadi.
+### 4. Qidiruv natijasida koordinata
 
----
+`VenueListItem` da `latitude` / `longitude` yo'q. Xarita rejimida ilova har bir venue uchun alohida `GET /venues/{id}` so'raydi (30 tagacha so'rov). Ikkala maydonni (`VenueRead` dagi kabi string) qo'shish bu so'rovlarni keraksiz qiladi.
 
-## §5. Promokod va voucherlar (taklif)
+### 5. To'yxonada xizmat turi
 
-Web'dagi voucherlar ro'yxati hardcode qilingan edi. Native ilovada "Voucherlar" tabi bo'sh holatni ko'rsatadi.
+"Tayyor dasturxon" yoki "O'zimiz tayyorlaymiz" tanlovi uchun `HallEventCreate` da maydon yo'q, hozir u `note` ichiga matn bo'lib yoziladi. Taklif: `service_mode: "ready" | "own"`.
 
-```
-GET  /vouchers                → VoucherRead[]   (foydalanuvchiga tegishli faol voucherlar)
-POST /vouchers/validate       { code, venue_id, booking_kind } → { valid, discount_percent | discount_amount, message }
-```
+### 6. Production ma'lumotlari
 
-Bron yaratishda `promo_code?: string` maydoni: `HallEventCreate` va `TableReservationCreate`.
+- 1-venue ("Bahor Chilonzor", 96 o'rin) uchun `GET /venues/1/tables` har doim bo'sh qaytadi. Stollar kiritilmagan bo'lsa, mijoz uni bron qila olmaydi.
+- To'yxonalarda `guest_tiers` bo'lmasa, onlayn bron yopiq bo'ladi.
 
----
+## Tekshirish
 
-## §6. Kichik takliflar (mavjud endpointlarga)
-
-| Joy | Muammo | Taklif |
-|---|---|---|
-| `GET /venues/search` → `sort` | Qabul qilinadigan qiymatlar hujjatlashtirilmagan. Shuning uchun ilova natijalarni hozircha o'zi saralaydi, bu esa faqat yuklangan sahifaga ishlaydi. | `sort` uchun `recommended` \| `rating` \| `price_asc` \| `distance` qiymatlarini qo'llab-quvvatlash (distance — `latitude`/`longitude` berilganda) |
-| `GET /venues/search` → elementlar | Koordinata yo'q. Xarita rejimida ilova har bir venue uchun alohida `GET /venues/{id}` so'raydi (30 tagacha so'rov). | `latitude`, `longitude` (string, `VenueRead` dagi kabi) qo'shish |
-| `POST /bookings/hall` | To'yxonada "Tayyor dasturxon" yoki "O'zimiz tayyorlaymiz" tanlovi uchun maydon yo'q. Hozir u `note` ichiga matn sifatida yoziladi. | `service_mode: "ready" \| "own"` maydoni |
-
----
-
-## §7. Real backend tekshiruvi natijalari (2026-10-23)
-
-Ochiq endpointlar `npm run smoke` sxemalari bilan solishtirildi:
-
-| Endpoint | Natija |
-|---|---|
-| `/regions`, `/regions/{id}/districts`, `/districts/nearest`, `/amenities`, `/service-catalog`, `/venues/{id}/zones`, `/venues/{id}/reviews`, `/reviews/venue/{id}/aggregate`, `/venues/{id}/availability` | ✓ tiplar mos |
-| `/venues/search` | ⚠ yangi maydonlar: `venue_type`, `street`, `house_number`, `capacity_min`, `capacity_max`. Ilova tiplariga qo'shildi, kartalarda manzil va sig'im ko'rsatiladi |
-| `/venues/{id}` | ⚠ yangi maydon `guest_tiers`. Bu to'yxonaning mehmonlar soni bo'yicha narx bosqichlari bo'lsa kerak (`BookingRead.guest_tier_id` bilan bog'liq). **Element tuzilishini yuboring** (`id`, `min_guests`, `max_guests`, `price`?) va `HallEventCreate` da `guest_tier_id` kerakmi, shuni ayting. Shunda bron oqimiga tanlov qo'shiladi |
-| `/languages` | ✗ **4xx xato.** Ilova bu ro'yxatdan til kodini `language_id` ga aylantiradi. Endpoint ishlamasa, til almashtirilganda profil yangilanmaydi (ilova ishlashda davom etadi). Ochiq (`skipAuth`) bo'lishi kerak |
-| `/venues/1/tables?...` | 1-venue (96 o'rinli restoran) uchun bo'sh stollar ro'yxati har doim bo'sh: `19:00` va `19:00:00` formatlarida ham. Stollar kiritilmaganmi yoki filtr xatomi — tekshiring. Stol bo'lmasa mijoz restoranni bron qila olmaydi |
-| `/docs`, `/openapi.json` | Yopiq. Test (staging) muhitida ochib qo'yilsa, `types.ts` ni OpenAPI'dan avtomatik generatsiya qilish mumkin bo'ladi va bunday nomuvofiqliklar o'z-o'zidan yo'qoladi |
-
-Token talab qiladigan endpointlar test akkaunti bilan `npm run smoke` orqali tekshiriladi (README → "Backend smoke test").
-
----
-
-## §8. Akkauntni o'chirish
-
-`DELETE /users/me` mavjud. App Store talabi bo'yicha u:
-- refresh tokenlarni va qurilmalarni bekor qilishi;
-- shaxsiy ma'lumotlarni (ism, telefon, avatar) anonimlashtirishi;
-- faol bronlar bo'yicha qaror qabul qilishi kerak. **Biznes qarori kerak:** bekor qilinadimi yoki saqlanadimi.
+`npm run smoke` endpointlarni chaqiradi va har bir javobni `types.ts` ga solishtiradi. Batafsil: README → "Backend smoke test".

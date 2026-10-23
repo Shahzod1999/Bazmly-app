@@ -3,7 +3,6 @@ export * from "./Button";
 export * from "./IconButton";
 export * from "./Input";
 export * from "./PhoneInput";
-export * from "./OTPInput";
 export * from "./Card";
 export * from "./Badge";
 export * from "./Chip";

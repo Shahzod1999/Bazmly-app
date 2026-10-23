@@ -16,18 +16,19 @@ npx expo start            # web preview: w tugmasi; telefon uchun development bu
 |---|---|
 | `npm run typecheck` | TypeScript tekshiruvi |
 | `npm run lint` | ESLint (React Compiler qoidalari bilan) |
-| `npm test` | Jest: API client, OTP, karta, format, narx qatorlari |
+| `npm test` | Jest: API client, kirish oqimi, format, narx qatorlari |
 | `npx expo export --platform ios --platform android` | Native JS bundle'ni yig'ish (tezkor kompilyatsiya tekshiruvi) |
-| `npm run smoke` | Backend smoke test: ~60 endpoint, javoblar `types.ts` ga solishtiriladi (pastga qarang) |
+| `npm run api:types` | `src/api/types.ts` ni backend OpenAPI sxemasidan qayta generatsiya qilish (`BACKEND_CONTRACT.md`) |
+| `npm run smoke` | Backend smoke test: ~55 endpoint, javoblar `types.ts` ga solishtiriladi (pastga qarang) |
 
-## Mock rejim
+## Backend
 
-Backend'da hali **SMS OTP** va **karta to'lovi** endpointlari yo'q. Ular `BACKEND_CONTRACT.md` da tavsiflangan. Hozir ilova ularni mock bilan ishlatadi:
+Backend: [Patriotic20/bazmly-backend](https://github.com/Patriotic20/bazmly-backend) (FastAPI). Production: `https://bazmly-backend-production.up.railway.app`, Swagger `/api/docs`.
 
-- `EXPO_PUBLIC_MOCK_OTP=true` — SMS kod `111111`. Kirish mavjud `/auth/phone-check`, `/auth/login` va `/auth/register` endpointlari orqali bo'ladi.
-- `EXPO_PUBLIC_MOCK_PAYMENTS=true` — karta va to'lov kodi `111111`. Karta faqat maskali ko'rinishda qurilmada saqlanadi.
-
-Boshqa hamma narsa real backend'ga ulanadi: `https://bazmly-backend-production.up.railway.app`.
+- Tiplar backend OpenAPI'dan generatsiya qilinadi (`npm run api:types`). Qo'lda tahrirlanmaydi.
+- Kirish backend qaroriga ko'ra SMS kodsiz: telefon raqam va ixtiyoriy parol.
+- Onlayn to'lov yo'q: bron `pending` holatida yaratiladi, muassasa tasdiqlaydi. Depozit joyida kelishiladi.
+- Batafsil va backend uchun ochiq masalalar (push, suratlar yuklash): `BACKEND_CONTRACT.md`.
 
 ## Backend smoke test
 
@@ -56,17 +57,17 @@ npm run smoke -- --json report.json # backend dasturchiga yuborish uchun
 ```
 src/app/                 # ekranlar (expo-router)
   onboarding.tsx         # til + slaydlar
-  (auth)/                # phone → otp → name; staff-login
+  (auth)/                # phone → password | register; name (pending_profile); staff-login
   (tabs)/                # Asosiy · Voucher · [Skaner] · Joylar · Profilim
   venue/[id]             # restoran ham, to'yxona ham (hall/[id] → redirect)
   book/hall/[id]         # to'yxona bron oqimi (bosqichli)
   book/table/[id]        # stol bron oqimi
-  payment/, payment-success/, ticket/, scan, map, notifications, messages/, profile/, review/
+  booking-success/, ticket/, scan, map, notifications, messages/, profile/ (password, ...), review/
   partner/(tabs)/        # Bosh · Bronlar · Menyu · Xodimlar · Sozlamalar
   partner/scan, partner/register, invite/[token]
 src/api/                 # client (refresh mutex), types (web'dan aynan), types.pending, services, queries
-src/features/            # ekranlararo bloklar (booking, payments, venues, tickets, partner, ...)
-src/components/ui/       # UI kit (Button, Input, Sheet, OTPInput, PhoneInput, Skeleton, States, ...)
+src/features/            # ekranlararo bloklar (auth, booking, venues, tickets, partner, ...)
+src/components/ui/       # UI kit (Button, Input, Sheet, PhoneInput, Skeleton, States, ...)
 src/theme/, src/i18n/, src/stores/, src/lib/
 docs/INVENTORY.md        # web → native xaritasi, web'da topilgan xatolar, ochiq savollar
 docs/RELEASE.md          # EAS build, do'kon talablari, universal link'lar

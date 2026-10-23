@@ -8,10 +8,11 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { useBooking } from "../../api/queries";
 import { TicketCard } from "../../features/tickets/TicketCard";
 import { PushPrompt } from "../../features/notifications/PushPrompt";
+import { DepositNotice } from "../../features/booking/DepositNotice";
 import { haptic } from "../../lib/haptics";
 
 export default function PaymentSuccessScreen() {
-  const { bookingId, noDeposit } = useLocalSearchParams<{ bookingId: string; noDeposit?: string }>();
+  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const { t } = useTranslation();
   const { colors } = useTheme();
   const router = useRouter();
@@ -59,10 +60,10 @@ export default function PaymentSuccessScreen() {
           <Check size={48} color={colors.success} strokeWidth={3} />
         </Animated.View>
         <Text variant="display" align="center" style={{ marginTop: 20 }}>
-          {noDeposit ? t("booking.created") : t("payment.successTitle")}
+          {t("booking.requestSent")}
         </Text>
         <Text variant="body" color="textMuted" align="center" style={{ marginTop: 8, maxWidth: 320 }}>
-          {t("payment.successText")}
+          {t("booking.requestSentText")}
         </Text>
       </View>
       <View style={{ marginTop: 28 }}>
@@ -71,7 +72,10 @@ export default function PaymentSuccessScreen() {
         ) : q.isError || !q.data ? (
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         ) : (
-          <TicketCard detail={q.data} compact />
+          <View style={{ gap: 14 }}>
+            <DepositNotice booking={q.data.booking} />
+            <TicketCard detail={q.data} compact />
+          </View>
         )}
       </View>
       <PushPrompt />

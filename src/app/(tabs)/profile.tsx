@@ -7,10 +7,10 @@ import {
   Bell,
   Bookmark,
   Briefcase,
-  CreditCard,
   Globe,
   HelpCircle,
   History,
+  KeyRound,
   LogOut,
   MessageCircle,
   Moon,
@@ -133,7 +133,7 @@ export default function ProfileScreen() {
 
       <View style={{ marginTop: 16 }}>
         <ListGroup>
-          <ListRow icon={icon(CreditCard)} title={t("profile.myCards")} onPress={go("/profile/cards")} />
+          <ListRow icon={icon(KeyRound)} title={t("profile.password")} onPress={go("/profile/password")} />
           <ListRow icon={icon(Bookmark)} title={t("profile.favorites")} onPress={go("/profile/favorites")} />
           <ListRow icon={icon(MessageCircle)} title={t("profile.messages")} onPress={go("/messages")} />
           <ListRow icon={icon(Bell)} title={t("profile.notifications")} onPress={go("/notifications")} />

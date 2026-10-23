@@ -5,29 +5,34 @@ import {
   getAccessToken,
   getRefreshToken,
   onAuthLogout,
-  otpService,
   userService,
-  type OtpVerifyResult,
+  type PhoneRegister,
   type UserProfileUpdate,
   type UserRead,
   type UserRole,
 } from "../api";
 import { loadTokens } from "../api/tokens";
 
-export const PARTNER_ROLES: UserRole[] = ["partner", "venue_owner", "venue_staff", "staff", "admin"];
+export const PARTNER_ROLES: UserRole[] = ["venue_owner", "venue_staff", "admin"];
 
 export type AuthStatus = "booting" | "guest" | "authed";
 
 interface AuthState {
   status: AuthStatus;
   user: UserRead | null;
-  /** Mock OTP rejimida yangi foydalanuvchi: ism kiritilgach /auth/register chaqiriladi */
-  pendingRegistrationPhone: string | null;
-
   bootstrap: () => Promise<void>;
   refreshUser: () => Promise<UserRead | null>;
-  verifyOtp: (requestId: string, phone: string, code: string) => Promise<"done" | "needs_profile">;
+  /**
+   * Telefon bilan kirish (backend: SMS/OTP yo'q — DECISIONS.md Part 9).
+   * Parol faqat akkauntda o'rnatilgan bo'lsa kerak (`phone-check` → `password_required`).
+   */
+  loginPhone: (phone: string, password?: string | null) => Promise<"done" | "needs_profile">;
+  /** Yangi raqam: ism-familiya va ixtiyoriy parol bilan ro'yxatdan o'tish */
+  register: (data: PhoneRegister) => Promise<void>;
+  /** Google orqali kelgan, ismi yo'q akkaunt (`pending_profile`) uchun */
   completeProfile: (firstName: string, lastName: string) => Promise<void>;
+  /** Parol o'rnatish/o'zgartirish. Backend barcha sessiyalarni bekor qiladi — shu sababli qayta kiramiz */
+  setPassword: (newPassword: string, currentPassword?: string | null) => Promise<void>;
   loginStaff: (login: string, password: string) => Promise<void>;
   updateProfile: (data: UserProfileUpdate) => Promise<UserRead>;
   logout: () => Promise<void>;
@@ -39,7 +44,6 @@ interface AuthState {
 export const useAuth = create<AuthState>()((set, get) => ({
   status: "booting",
   user: null,
-  pendingRegistrationPhone: null,
 
   async bootstrap() {
     await loadTokens();
@@ -74,28 +78,33 @@ export const useAuth = create<AuthState>()((set, get) => ({
     }
   },
 
-  async verifyOtp(requestId, phone, code) {
-    const res: OtpVerifyResult = await otpService.verify(requestId, phone, code);
-    if (res.kind === "new_user_pending") {
-      set({ pendingRegistrationPhone: res.phone });
-      return "needs_profile";
-    }
+  async loginPhone(phone, password) {
+    const tokens = await authService.login({ phone, password: password || null });
     const user = await userService.getMe();
-    set({ user, status: "authed", pendingRegistrationPhone: null });
-    if (!res.profile_completed || user.status === "pending_profile" || !user.first_name)
+    set({ user, status: "authed" });
+    if (tokens.profile_completed === false || user.status === "pending_profile" || !user.first_name)
       return "needs_profile";
     return "done";
   },
 
-  async completeProfile(firstName, lastName) {
-    const pendingPhone = get().pendingRegistrationPhone;
-    if (pendingPhone) {
-      await authService.register({ phone: pendingPhone, first_name: firstName, last_name: lastName });
-    } else {
-      await authService.completeProfile({ first_name: firstName, last_name: lastName });
-    }
+  async register(data) {
+    await authService.register({ ...data, password: data.password || null });
     const user = await userService.getMe();
-    set({ user, status: "authed", pendingRegistrationPhone: null });
+    set({ user, status: "authed" });
+  },
+
+  async completeProfile(firstName, lastName) {
+    await authService.completeProfile({ first_name: firstName, last_name: lastName });
+    const user = await userService.getMe();
+    set({ user, status: "authed" });
+  },
+
+  async setPassword(newPassword, currentPassword) {
+    const phone = get().user?.phone;
+    await authService.setPassword({ new_password: newPassword, current_password: currentPassword || null });
+    // Backend parol o'rnatilganda barcha sessiyalarni bekor qiladi — yangi parol bilan qayta kiramiz
+    if (phone) await authService.login({ phone, password: newPassword });
+    await get().refreshUser();
   },
 
   async loginStaff(login, password) {
@@ -118,7 +127,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
       /* server xatosi bo'lsa ham lokal chiqamiz */
     }
     clearTokens();
-    set({ status: "guest", user: null, pendingRegistrationPhone: null });
+    set({ status: "guest", user: null });
   },
 
   async deleteAccount() {

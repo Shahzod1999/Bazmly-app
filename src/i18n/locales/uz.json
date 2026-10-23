@@ -41,8 +41,24 @@
     "uzs": "so'm"
   },
   "weekdays": {
-    "short": ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"],
-    "long": ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
+    "short": [
+      "Du",
+      "Se",
+      "Ch",
+      "Pa",
+      "Ju",
+      "Sh",
+      "Ya"
+    ],
+    "long": [
+      "Dushanba",
+      "Seshanba",
+      "Chorshanba",
+      "Payshanba",
+      "Juma",
+      "Shanba",
+      "Yakshanba"
+    ]
   },
   "months": [
     "Yanvar",
@@ -72,22 +88,11 @@
   },
   "auth": {
     "title": "Akkauntga kirish",
-    "subtitle": "Telefon raqamingizni kiriting — sizga SMS kod yuboramiz",
+    "subtitle": "Telefon raqamingizni kiriting. Yangi bo'lsangiz — ro'yxatdan o'tasiz",
     "phoneLabel": "Telefon raqam",
     "phonePlaceholder": "90 123 45 67",
     "phoneInvalid": "Telefon raqam noto'g'ri",
-    "sendCode": "Kod olish",
     "terms": "Davom etish orqali siz foydalanish shartlari va maxfiylik siyosatiga rozilik bildirasiz",
-    "otpTitle": "SMS kodni kiriting",
-    "otpSubtitle": "{{phone}} raqamiga {{length}} xonali kod yuborildi",
-    "otpResendIn": "Qayta yuborish: {{seconds}} s",
-    "otpResend": "Kodni qayta yuborish",
-    "otpWrongNumber": "Raqamni o'zgartirish",
-    "otpMockHint": "Test rejimi: kod {{code}}",
-    "otp_invalid": "Kod noto'g'ri",
-    "otp_expired": "Kod muddati tugagan. Qayta yuboring.",
-    "otp_attempts_exceeded": "Urinishlar soni tugadi. Yangi kod so'rang.",
-    "otp_rate_limited": "Juda ko'p so'rov. {{seconds}} soniyadan keyin urinib ko'ring.",
     "nameTitle": "Ismingiz nima?",
     "nameSubtitle": "Bron qilishda zal ma'muriyati sizni shu ism bilan ko'radi",
     "firstName": "Ism",
@@ -101,8 +106,20 @@
     "login": "Login",
     "password": "Parol",
     "partnerLink": "Muassasangizni Bazmly'ga qo'shing",
-    "socialSoon": "Apple va Google orqali kirish tez orada",
-    "sessionExpired": "Sessiya tugadi. Qayta kiring."
+    "sessionExpired": "Sessiya tugadi. Qayta kiring.",
+    "continue": "Davom etish",
+    "signIn": "Kirish",
+    "passwordTitle": "Parolni kiriting",
+    "passwordSubtitle": "{{phone}} raqamli akkauntda parol o'rnatilgan",
+    "showPassword": "Parolni ko'rsatish",
+    "hidePassword": "Parolni yashirish",
+    "registerTitle": "Akkaunt yaratish",
+    "registerSubtitle": "{{phone}} raqami uchun yangi akkaunt",
+    "createAccount": "Akkaunt yaratish",
+    "passwordOptional": "Parol (ixtiyoriy)",
+    "passwordMin": "Kamida {{count}} belgi",
+    "passwordTooShort": "Parol kamida {{count}} belgidan iborat bo'lishi kerak",
+    "passwordWhy": "Kirishda SMS kod so'ralmaydi. Parol qo'ysangiz, raqamingizni bilgan boshqa odam akkauntingizga kira olmaydi. Keyinroq Profil → Parol bo'limida ham qo'yish mumkin."
   },
   "tabs": {
     "home": "Asosiy",
@@ -196,7 +213,8 @@
     "shareText": "{{name}} — Bazmly'da ko'ring: {{url}}",
     "totalPrice": "Jami narx",
     "depositPercent": "Depozit: {{value}}%",
-    "notFound": "Joy topilmadi"
+    "notFound": "Joy topilmadi",
+    "unavailable": "Hozir yo'q"
   },
   "booking": {
     "title": "Bron qilish",
@@ -241,7 +259,16 @@
     "created": "Bron yaratildi",
     "payDeposit": "Depozitni to'lash",
     "draftRestored": "Oldingi tanlovingiz tiklandi",
-    "selectDateFirst": "Avval sanani tanlang"
+    "selectDateFirst": "Avval sanani tanlang",
+    "requestSent": "Bron so'rovi yuborildi",
+    "requestSentText": "Muassasa bronni tasdiqlagach sizga bildirishnoma keladi. Chiptangiz «Voucher» bo'limida.",
+    "depositAmountLine": "Depozit: {{amount}}",
+    "depositOffline": "Ilovada to'lanmaydi — to'lov tartibini muassasa bron tasdiqlanganda siz bilan kelishadi.",
+    "tiersTitle": "Narx mehmonlar soniga qarab",
+    "tierFrom": "{{min}}+ kishi",
+    "tierNone": "Bu mehmonlar soni uchun narx belgilanmagan — yuqoridagi oraliqlardan birini tanlang",
+    "tiersMissing": "To'yxona narxlarni hali kiritmagan, shuning uchun onlayn bron qilib bo'lmaydi. Muassasaga qo'ng'iroq qiling.",
+    "hallRental": "Zal ijarasi"
   },
   "payment": {
     "title": "To'lov",
@@ -315,8 +342,8 @@
     "checked_in": "Kelgan",
     "completed": "Yakunlangan",
     "cancelled": "Bekor qilingan",
-    "rejected": "Rad etilgan",
-    "no_show": "Kelmagan"
+    "no_show": "Kelmagan",
+    "expired": "Muddati o'tgan"
   },
   "scan": {
     "title": "Skaner",
@@ -335,7 +362,6 @@
   "profile": {
     "title": "Profil",
     "editProfile": "Profilni tahrirlash",
-    "myCards": "Mening kartalarim",
     "favorites": "Sevimlilar",
     "favoritesEmpty": "Sevimli joylar yo'q",
     "messages": "Xabarlar",
@@ -373,7 +399,16 @@
     "pushDisabledHint": "Bildirishnomalar telefon sozlamalarida o'chirilgan",
     "privacy": "Maxfiylik siyosati",
     "terms": "Foydalanish shartlari",
-    "support": "Qo'llab-quvvatlash"
+    "support": "Qo'llab-quvvatlash",
+    "password": "Parol",
+    "passwordSaved": "Parol saqlandi",
+    "passwordOn": "Akkauntingiz parol bilan himoyalangan.",
+    "passwordOff": "Parol o'rnatilmagan: raqamingizni bilgan har kim akkauntga kira oladi. Parol qo'yishni tavsiya qilamiz.",
+    "currentPassword": "Joriy parol",
+    "currentPasswordRequired": "Joriy parolni kiriting",
+    "newPassword": "Yangi parol",
+    "repeatPassword": "Parolni takrorlang",
+    "passwordMismatch": "Parollar mos emas"
   },
   "faq": {
     "q1": "Qanday bron qilaman?",

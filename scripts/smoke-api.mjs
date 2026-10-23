@@ -23,7 +23,7 @@
  *
  * Natija: ✓ o'tdi · ✗ xato (status yoki majburiy maydon/tip mos emas) ·
  *         ⚠ ogohlantirish (types.ts da yo'q qo'shimcha maydon, sekin javob) ·
- *         ⏳ hali chiqarilmagan (BACKEND_CONTRACT.md) · – o'tkazib yuborildi
+ *         – o'tkazib yuborildi
  * Xato bo'lsa chiqish kodi 1 (CI'da ishlatish mumkin).
  */
 import { createRequire } from "node:module";
@@ -58,10 +58,7 @@ const jsonOut = (() => {
 process.stdout.write("Sxemalar types.ts dan generatsiya qilinmoqda... ");
 const { createGenerator } = require("ts-json-schema-generator");
 const genOpts = { tsconfig: resolve(ROOT, "tsconfig.json"), type: "*", skipTypeCheck: true, expose: "export", additionalProperties: false };
-const definitions = {
-  ...createGenerator({ ...genOpts, path: resolve(ROOT, "src/api/types.ts") }).createSchema("*").definitions,
-  ...createGenerator({ ...genOpts, path: resolve(ROOT, "src/api/types.pending.ts") }).createSchema("*").definitions,
-};
+const definitions = createGenerator({ ...genOpts, path: resolve(ROOT, "src/api/types.ts") }).createSchema("*").definitions;
 console.log(`${Object.keys(definitions).length} ta tip`);
 
 const Ajv = require("ajv");
@@ -135,7 +132,7 @@ async function call(method, path, { body, token, query } = {}) {
 // ---------- natijalar ----------
 const results = [];
 let currentGroup = "";
-const ICON = { pass: "✓", fail: "✗", warn: "⚠", pending: "⏳", skip: "–" };
+const ICON = { pass: "✓", fail: "✗", warn: "⚠", skip: "–" };
 
 function record(r) {
   results.push({ group: currentGroup, ...r });
@@ -190,18 +187,6 @@ async function check(name, method, path, { schema, expect = [200], ...opts } = {
   return r.data;
 }
 
-/** Hali chiqarilmagan endpoint: 404/405 → ⏳, boshqa javob → endpoint bor */
-async function probePending(label, method, path, opts = {}) {
-  const r = await call(method, path, opts);
-  const name = `${method} ${path}  (${label})`;
-  if (r.status === 404 || r.status === 405) {
-    record({ name, status: r.status, ms: r.ms, result: "pending", note: "hali chiqarilmagan — BACKEND_CONTRACT.md" });
-  } else if (r.status === 0) {
-    record({ name, status: 0, ms: r.ms, result: "fail", note: `tarmoq xatosi: ${r.netError}` });
-  } else {
-    record({ name, status: r.status, ms: r.ms, result: "pass", note: "endpoint mavjud — shartnomaga moslikni to'liq test qiling" });
-  }
-}
 
 function skip(name, why) {
   record({ name, result: "skip", note: why });
@@ -220,7 +205,7 @@ async function main() {
   console.log(`Rejim: ${WRITE ? "O'QISH + YOZISH (SMOKE_WRITE=1)" : "faqat o'qish"}`);
 
   // Backend umuman ochilmasa — 60 ta bir xil xato o'rniga bitta aniq xabar
-  const ping = await call("GET", "/languages");
+  const ping = await call("GET", "/regions");
   if (ping.status === 0) {
     console.error(`\n✗ Backend'ga ulanib bo'lmadi (${ping.netError}). URL va internetni tekshiring: ${BASE}`);
     process.exitCode = 2;
@@ -228,7 +213,6 @@ async function main() {
   }
 
   group("1. Ochiq endpointlar (token kerak emas)");
-  await check("", "GET", "/languages", { schema: arrayOf("LanguageRead") });
   const regions = await check("", "GET", "/regions", { schema: arrayOf("RegionRead") });
   if (regions?.[0]) await check("birinchi viloyat", "GET", `/regions/${regions[0].id}/districts`, { schema: arrayOf("DistrictRead") });
   await check("Toshkent markazi", "GET", "/districts/nearest", { query: { lat: 41.3111, lng: 69.2797 }, schema: ref("NearestDistrictRead") });
@@ -361,7 +345,7 @@ async function main() {
         await check("", "GET", `/venue/venues/${vid}`, { ...t, schema: ref("VenueRead") });
         await check("", "GET", `/venue/venues/${vid}/zones`, { ...t, schema: arrayOf("VenueZoneRead") });
         await check("", "GET", `/venue/venues/${vid}/tables`, { ...t, schema: arrayOf("VenueTableRead") });
-        await check("bugun", "GET", "/venue/bookings", { ...t, query: { venue_id: vid, day: daysFromNow(0) }, schema: arrayOf("BookingListItem") });
+        await check("bugun", "GET", "/venue/bookings", { ...t, query: { venue_id: vid, day: daysFromNow(0) }, schema: arrayOf("VenueBookingRead") });
         await check("", "GET", "/venue/analytics/dashboard", { ...t, query: { group_id: gid, venue_id: vid }, schema: ref("DashboardRead") });
         await check("7 kun", "GET", "/venue/analytics/daily", { ...t, query: { venue_id: vid, date_from: daysFromNow(-7), date_to: daysFromNow(0) }, schema: arrayOf("VenueDailyStatsRead") });
         await check("hafta", "GET", "/venue/analytics/revenue", { ...t, query: { venue_id: vid, period: "week" }, schema: ref("StatsTotalsRead") });
@@ -378,22 +362,11 @@ async function main() {
     }
   }
 
-  group("7. Mobil ilova uchun yangi endpointlar (BACKEND_CONTRACT.md)");
-  // Bo'sh body bilan — endpoint bo'lsa 422 qaytaradi, SMS yuborilmaydi
-  await probePending("§1 SMS OTP yuborish", "POST", "/auth/otp/send", { body: {} });
-  await probePending("§1 SMS OTP tekshirish", "POST", "/auth/otp/verify", { body: {} });
-  if (customerToken) {
-    await probePending("§2 saqlangan kartalar", "GET", "/payments/cards", { token: customerToken });
-  } else {
-    await probePending("§2 saqlangan kartalar (tokensiz)", "GET", "/payments/cards");
-  }
-  await probePending("§4 venue suratlari", "POST", "/venue/venues/0/photos", { body: {}, token: partnerToken ?? undefined });
-  await probePending("§5 voucherlar", "GET", "/vouchers", { token: customerToken ?? undefined });
 
   // ---------- xulosa ----------
   const count = (k) => results.filter((r) => r.result === k).length;
   console.log("\n────────────────────────────────────────");
-  console.log(`✓ ${count("pass")}  ✗ ${count("fail")}  ⚠ ${count("warn")}  ⏳ ${count("pending")}  – ${count("skip")}`);
+  console.log(`✓ ${count("pass")}  ✗ ${count("fail")}  ⚠ ${count("warn")}  – ${count("skip")}`);
   const fails = results.filter((r) => r.result === "fail");
   if (fails.length) {
     console.log("\nXatolar:");

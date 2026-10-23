@@ -78,18 +78,26 @@ export default function HallBookingScreen() {
   const step = draft.step;
   const capMin = v.capacity_min ?? 1;
   const capMax = v.capacity_max ?? 3000;
+  // Narx bosqichlari: backend mehmonlar soniga mos bosqichni o'zi tanlaydi va mos bosqich
+  // bo'lmasa bronni rad etadi (capacity_exceeded) — shuning uchun tanlov shu oraliqlarda cheklanadi
+  const tiers = [...(venueQ.data?.guest_tiers ?? [])].sort((a, b) => a.min_guests - b.min_guests);
+  const tierFor = (g: number) =>
+    tiers.find((tr) => g >= tr.min_guests && (tr.max_guests == null || g <= tr.max_guests)) ?? null;
+  const currentTier = tierFor(draft.guests);
+  const guestsMin = tiers.length ? tiers[0].min_guests : 1;
+  const lastTier = tiers[tiers.length - 1];
+  const guestsMax = tiers.length ? (lastTier.max_guests ?? capMax) : capMax;
 
   const unitLabel = (u: ServicePriceUnit) =>
     ({
       per_guest: t("booking.perGuest"),
-      per_event: t("booking.perEvent"),
       per_hour: t("booking.perHour"),
-      fixed: t("booking.fixed"),
+      flat: t("booking.fixed"),
     })[u];
 
   const canNext =
     (step === 0 && !!draft.date && !blocked.has(draft.date)) ||
-    (step === 1 && draft.guests >= 1 && draft.startTime < draft.endTime) ||
+    (step === 1 && draft.guests >= 1 && !!currentTier && draft.startTime < draft.endTime) ||
     (step === 2 && !!draft.serviceMode) ||
     step === 3;
 
@@ -175,17 +183,52 @@ export default function HallBookingScreen() {
           <View>
             <Text variant="h1">{t("booking.guestsTitle")}</Text>
             <Text variant="small" color="textMuted" style={{ marginTop: 4, marginBottom: 14 }}>
-              {v.capacity_min && v.capacity_max
-                ? t("venue.capacityRange", { min: capMin, max: capMax })
-                : t("booking.guestsHint")}
+              {tiers.length
+                ? lastTier.max_guests != null
+                  ? t("venue.capacityRange", { min: guestsMin, max: guestsMax })
+                  : t("booking.tierFrom", { min: guestsMin })
+                : v.capacity_min && v.capacity_max
+                  ? t("venue.capacityRange", { min: capMin, max: capMax })
+                  : t("booking.guestsHint")}
             </Text>
             <Stepper
               value={draft.guests}
               onChange={(g) => update({ guests: g })}
-              min={1}
-              max={capMax}
+              min={guestsMin}
+              max={guestsMax}
               step={draft.guests >= 100 ? 10 : 5}
             />
+            {tiers.length ? (
+              <View style={{ gap: 8, marginTop: 16 }}>
+                <Text variant="smallMedium" color="textMuted">
+                  {t("booking.tiersTitle")}
+                </Text>
+                {tiers.map((tr) => (
+                  <OptionCard
+                    key={tr.id}
+                    active={currentTier?.id === tr.id}
+                    title={
+                      tr.max_guests != null
+                        ? t("venue.capacityRange", { min: tr.min_guests, max: tr.max_guests })
+                        : t("booking.tierFrom", { min: tr.min_guests })
+                    }
+                    subtitle={formatMoney(tr.base_price, v.currency)}
+                    onPress={() => {
+                      if (currentTier?.id !== tr.id) update({ guests: tr.min_guests });
+                    }}
+                  />
+                ))}
+                {!currentTier ? (
+                  <Text variant="small" color="danger">
+                    {t("booking.tierNone")}
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <Text variant="small" color="danger" style={{ marginTop: 12 }}>
+                {t("booking.tiersMissing")}
+              </Text>
+            )}
           </View>
           <View>
             <Text variant="h1" style={{ marginBottom: 14 }}>
@@ -278,8 +321,8 @@ export default function HallBookingScreen() {
             ...(selectedServices.length
               ? [{ label: t("booking.extrasTitle"), value: selectedServices.map((s) => s.name).join(", ") }]
               : []),
-            ...(v.base_price
-              ? [{ label: t("venue.price"), value: formatMoney(v.base_price, v.currency) }]
+            ...(currentTier
+              ? [{ label: t("booking.hallRental"), value: formatMoney(currentTier.base_price, v.currency) }]
               : []),
           ]}
         />

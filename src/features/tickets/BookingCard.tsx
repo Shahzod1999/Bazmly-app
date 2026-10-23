@@ -27,7 +27,7 @@ export function BookingCard({
     <Card onPress={onPress} accessibilityLabel={b.venue_name}>
       <View style={styles.row}>
         <Image
-          source={venueImage(b.venue_id, null, b.kind === "hall" ? "toyxona" : "restoran")}
+          source={venueImage(b.venue_id, null, b.kind === "hall_event" ? "toyxona" : "restoran")}
           style={styles.img}
           contentFit="cover"
         />

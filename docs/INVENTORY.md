@@ -1,5 +1,7 @@
 # Bosqich 0 — Web loyiha inventarizatsiyasi
 
+> **Tarixiy hujjat (2026-10-22).** Keyin ilova haqiqiy backend'ga (Patriotic20/bazmly-backend) moslandi: SMS/OTP va onlayn to'lov backend qarori bilan olib tashlangan, tiplar OpenAPI'dan generatsiya qilinadi. Joriy holat: `BACKEND_CONTRACT.md`.
+
 Manba: `bazmly` (Next.js 16.2 + React 19.2 + Tailwind v4), ~17 600 qator, 10 ta route, 9 ta API servis, `types.ts` (~1100 qator, backend OpenAPI'ga mos).
 Web ekranlar skrinshotlari soxta API javoblari bilan olindi (backend konteynerdan ochilmaydi) — `docs/web-reference/`.
 

@@ -5,8 +5,9 @@ import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
 import { Button, Header, PhoneInput, Screen, Text, errorMessage, toast } from "../../components/ui";
 import { isValidUzPhone, toE164 } from "../../lib/format";
-import { otpService } from "../../api";
-import { MOCK_OTP } from "../../api/config.flags";
+import { authService } from "../../api";
+import { useAuth } from "../../stores/auth";
+import { finishAuth } from "../../features/auth/redirect";
 
 export default function PhoneScreen() {
   const { t } = useTranslation();
@@ -16,6 +17,7 @@ export default function PhoneScreen() {
   const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const valid = isValidUzPhone(phone);
+  const loginPhone = useAuth((st) => st.loginPhone);
 
   const submit = async () => {
     setTouched(true);
@@ -23,17 +25,19 @@ export default function PhoneScreen() {
     setLoading(true);
     try {
       const e164 = toE164(phone);
-      const res = await otpService.send(e164);
-      router.push({
-        pathname: "/(auth)/otp",
-        params: {
-          phone: e164,
-          requestId: res.request_id,
-          resendAfter: String(res.resend_after_seconds),
-          length: String(res.code_length),
-          redirect: redirect ?? "",
-        },
-      });
+      // Backend'da SMS tasdiq yo'q: raqam ma'lum bo'lsa — kirish (parol o'rnatilgan bo'lsa so'raladi),
+      // yangi bo'lsa — ro'yxatdan o'tish (DECISIONS.md Part 9)
+      const check = await authService.checkPhone(e164);
+      const params = { phone: e164, redirect: redirect ?? "" };
+      if (!check.registered) {
+        router.push({ pathname: "/(auth)/register", params });
+      } else if (check.password_required) {
+        router.push({ pathname: "/(auth)/password", params });
+      } else {
+        const res = await loginPhone(e164);
+        if (res === "needs_profile") router.replace({ pathname: "/(auth)/name", params: { redirect: redirect ?? "" } });
+        else finishAuth(redirect);
+      }
     } catch (e) {
       toast.error(errorMessage(e, t("common.errorGeneric")));
     } finally {
@@ -47,7 +51,7 @@ export default function PhoneScreen() {
       scroll
       footer={
         <Button
-          title={t("auth.sendCode")}
+          title={t("auth.continue")}
           size="lg"
           onPress={submit}
           loading={loading}
@@ -73,11 +77,6 @@ export default function PhoneScreen() {
         onSubmitEditing={submit}
         error={touched && !valid ? t("auth.phoneInvalid") : null}
       />
-      {MOCK_OTP ? (
-        <Text variant="small" color="info" style={{ marginTop: 12 }}>
-          {t("auth.otpMockHint", { code: "111111" })}
-        </Text>
-      ) : null}
       <Text variant="small" color="textSubtle" style={{ marginTop: 20 }}>
         {t("auth.terms")}
       </Text>
@@ -92,9 +91,6 @@ export default function PhoneScreen() {
             {t("auth.staffLink")}
           </Text>
         </Pressable>
-        <Text variant="small" color="textSubtle">
-          {t("auth.socialSoon")}
-        </Text>
       </View>
     </Screen>
   );

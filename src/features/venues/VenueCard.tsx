@@ -73,7 +73,7 @@ export function VenueCard({ venue, onPress, variant = "grid", favorite, onToggle
             ) : null}
             <View style={styles.metaRow}>
               <StatusDot
-                open={venue.is_open_now}
+                open={!!venue.is_open_now}
                 label={venue.is_open_now ? t("common.open") : t("common.closed")}
               />
               {distance ? (
@@ -129,7 +129,7 @@ export function VenueCard({ venue, onPress, variant = "grid", favorite, onToggle
             ) : null}
             <View style={styles.metaRow}>
               <StatusDot
-                open={venue.is_open_now}
+                open={!!venue.is_open_now}
                 label={venue.is_open_now ? t("common.open") : t("common.closed")}
               />
               {distance ? (
@@ -174,7 +174,7 @@ export function VenueCard({ venue, onPress, variant = "grid", favorite, onToggle
             <RatingInline rating={venue.rating_avg} />
           </View>
           <StatusDot
-            open={venue.is_open_now}
+            open={!!venue.is_open_now}
             label={venue.is_open_now ? t("common.open") : t("common.closed")}
           />
           <View style={styles.metaRow}>

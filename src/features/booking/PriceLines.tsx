@@ -9,7 +9,7 @@ import { formatMoney } from "../../lib/format";
 export function PriceLines({ detail }: { detail: BookingOwnerDetail }) {
   const { t } = useTranslation();
   const b = detail.booking;
-  const lines = [...detail.price_lines]
+  const lines = [...(detail.price_lines ?? [])]
     .sort((a, b2) => a.sort_order - b2.sort_order)
     .filter((l) => l.line_type !== "deposit");
   return (
