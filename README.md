@@ -30,6 +30,34 @@ Backend: [Patriotic20/bazmly-backend](https://github.com/Patriotic20/bazmly-back
 - Onlayn to'lov yo'q: bron `pending` holatida yaratiladi, muassasa tasdiqlaydi. Depozit joyida kelishiladi.
 - Batafsil va backend uchun ochiq masalalar (push, suratlar yuklash): `BACKEND_CONTRACT.md`.
 
+## Lokal backend bilan ishlash
+
+Production'ga tegmasdan to'liq sinash uchun backend'ni lokal ishga tushiring (PostgreSQL 16 + PostGIS, Redis kerak; yoki `bazfind` monorepo'dagi `docker compose up`):
+
+```bash
+git clone https://github.com/Patriotic20/bazmly-backend && cd bazmly-backend
+cp .env.template .env        # CORS ga http://localhost:8081 ni qo'shing
+uv sync && uv run alembic upgrade head
+uv run python -m scripts.seed_demo     # demo: 10 venue, mijozlar, egalar, xodimlar, bronlar
+uv run uvicorn app.main:app --port 8000
+```
+
+Ilovada: `.env` → `EXPO_PUBLIC_API_BASE_URL=http://localhost:8000` (telefonda — kompyuterning lokal IP manzili).
+
+Demo akkauntlar (parol hammasida `demo1234`):
+
+| Rol | Kirish |
+|---|---|
+| Mijoz | `+998 90 000 01 01` … `01 06` |
+| Muassasa egasi | `+998 90 000 00 11` (Bahor), `…00 14` (Sayqal va 3 ta to'yxona) |
+| Xodim | login `bzmana201`, `bzwait202`, … ("Xodim sifatida kirish") |
+| Admin | `+998 90 000 00 01` |
+
+```bash
+SMOKE_API_BASE_URL=http://localhost:8000 SMOKE_PHONE=+998900000101 SMOKE_PASSWORD=demo1234 \
+  SMOKE_WRITE=1 SMOKE_VENUE_ID=1 npm run smoke
+```
+
 ## Backend smoke test
 
 `npm run smoke` web va mobil ilova ishlatadigan endpointlarni chaqiradi. Har bir javobni `src/api/types.ts` dagi tipga solishtiradi; sxemalar har safar shu fayldan avtomatik generatsiya qilinadi.

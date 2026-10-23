@@ -315,7 +315,8 @@
     "showAtEntrance": "Kirishda QR kodni ko'rsating",
     "code": "Chipta kodi",
     "receipt": "Chek raqami",
-    "addToWallet": "Wallet'ga qo'shish"
+    "addToWallet": "Wallet'ga qo'shish",
+    "payAtVenue": "Joyida hisoblanadi"
   },
   "places": {
     "title": "Band qilingan joylar",
@@ -519,7 +520,9 @@
     "dayOff": "Dam olish kuni",
     "inviteAccept": "Taklifni qabul qilish",
     "newPassword": "Yangi parol",
-    "tempPassword": "Vaqtinchalik parol"
+    "tempPassword": "Vaqtinchalik parol",
+    "todayQueue": "Bugungi navbat",
+    "todayQueueHint": "Bugun keladigan, hali kirmagan mehmonlar"
   },
   "partnerRegister": {
     "title": "Muassasa qo'shish",

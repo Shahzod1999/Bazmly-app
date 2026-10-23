@@ -129,8 +129,12 @@ export function buildUrl(endpoint: string, params?: Record<string, any>): string
   if (params) {
     const parts: string[] = [];
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+      if (value === undefined || value === null || value === "") return;
+      // Ro'yxat — FastAPI kutganidek takrorlanuvchi parametr: statuses=a&statuses=b
+      const values = Array.isArray(value) ? value : [value];
+      for (const v of values) {
+        if (v === undefined || v === null || v === "") continue;
+        parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(v))}`);
       }
     });
     if (parts.length) url += (url.includes("?") ? "&" : "?") + parts.join("&");

@@ -62,12 +62,16 @@ export default function PartnerDashboard() {
               >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Text variant="caption" color="rgba(255,255,255,0.85)" style={{ flex: 1 }}>
-                    {t("partner.pendingBookings").toUpperCase()}
+                    {t("partner.todayQueue").toUpperCase()}
                   </Text>
                   <ChevronRight size={18} color="#fff" />
                 </View>
                 <Text variant="display" color="#fff" style={{ fontSize: 40, lineHeight: 46, marginTop: 6 }}>
                   {d.queue_count}
+                </Text>
+                {/* Backend: bugungi tasdiqlangan, hali kirmagan bronlar (live_queue_count) */}
+                <Text variant="small" color="rgba(255,255,255,0.85)">
+                  {t("partner.todayQueueHint")}
                 </Text>
               </Pressable>
 

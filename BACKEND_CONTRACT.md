@@ -66,11 +66,26 @@ Push'da `data` ham bo'lishi kerak, shunda bildirishnoma bosilganda ilova kerakli
 
 FCM/APNs bilan to'g'ridan-to'g'ri ishlash tanlansa, ilovada `EXPO_PUBLIC_PUSH_TOKEN_KIND=native` qo'yiladi va native token yuboriladi.
 
-### 2. Depozit qanday to'lanadi?
+### 2. Bron javobida `venue_name` bo'sh (xato)
+
+`POST /bookings/table`, `POST /bookings/hall` va `GET /bookings/{id}` `venue_name: ""` qaytaradi: `booking_service.py` da `_detail_in_transaction(..., venue_name=None)` chaqiriladi va `venue_name or ""` bo'lib qoladi. Ilova vaqtincha nomni `GET /venues/{id}` dan oladi (`useBookingVenueName`). Tuzatish: venue nomini o'qib uzatish (`venue.name` create'da allaqachon bor).
+
+### 3. Hamkor to'yxona narx bosqichlarini kirita olmaydi
+
+`venue_guest_tiers` faqat seed orqali to'ldiriladi. Hamkor uchun bosqich yaratish yoki tahrirlash endpointi yo'q (`/venue/venues/{id}/guest-tiers`). Bosqichsiz to'yxonani esa bron qilib bo'lmaydi (`capacity_exceeded`). Real muassasalar ulanishidan oldin kerak:
+
+```
+GET    /venue/venues/{id}/guest-tiers                → VenueGuestTierRead[]
+PUT    /venue/venues/{id}/guest-tiers                [{ min_guests, max_guests|null, base_price }] → VenueGuestTierRead[]
+```
+
+Bosqichlar ustma-ust tushmasligi kerak (hozir seed'da 150–200 va 200–300 chegarada kesishadi). Endpoint tayyor bo'lgach, hamkor sozlamalariga tahrirlash ekrani qo'shiladi.
+
+### 4. Depozit qanday to'lanadi?
 
 Backend depozitni hisoblaydi (`deposit_amount`, narx qatori `deposit`). `deposit_paid_at` ham bor, lekin uni belgilaydigan endpoint yo'q. Mijozga hozir "to'lov tartibini muassasa kelishadi" deb aytilyapti. Agar muassasa depozitni olganini panelda belgilashi kerak bo'lsa (masalan, `POST /venue/bookings/{id}/deposit-received`), hamkor ilovasiga tugma qo'shiladi.
 
-### 3. Venue suratlarini yuklash
+### 5. Venue suratlarini yuklash
 
 `PATCH /venue/venues/{id}/onboarding/media-done` bor, lekin suratni yuklaydigan endpoint yo'q. Shu sababli hamkor ro'yxatdan o'tishda tanlagan suratlar yuborilmaydi. Taklif:
 
@@ -79,18 +94,31 @@ POST   /venue/venues/{id}/photos          multipart: file (jpeg/webp ≤ 5 MB) �
 DELETE /venue/venues/{id}/photos/{photo_id} → 204
 ```
 
-### 4. Qidiruv natijasida koordinata
+### 6. Qidiruv natijasida koordinata
 
 `VenueListItem` da `latitude` / `longitude` yo'q. Xarita rejimida ilova har bir venue uchun alohida `GET /venues/{id}` so'raydi (30 tagacha so'rov). Ikkala maydonni (`VenueRead` dagi kabi string) qo'shish bu so'rovlarni keraksiz qiladi.
 
-### 5. To'yxonada xizmat turi
+### 7. To'yxonada xizmat turi
 
 "Tayyor dasturxon" yoki "O'zimiz tayyorlaymiz" tanlovi uchun `HallEventCreate` da maydon yo'q, hozir u `note` ichiga matn bo'lib yoziladi. Taklif: `service_mode: "ready" | "own"`.
 
-### 6. Production ma'lumotlari
+### 8. Production ma'lumotlari
 
 - 1-venue ("Bahor Chilonzor", 96 o'rin) uchun `GET /venues/1/tables` har doim bo'sh qaytadi. Stollar kiritilmagan bo'lsa, mijoz uni bron qila olmaydi.
 - To'yxonalarda `guest_tiers` bo'lmasa, onlayn bron yopiq bo'ladi.
+
+## Lokal backend bilan tekshirilgan (2026-10-23)
+
+`bazmly-backend` (barcha migratsiyalar va `scripts.seed_demo`) lokal Postgres/PostGIS'da ishga tushirilib, ilova unga ulangan holda sinaldi. Mock ishlatilmagan.
+
+- `npm run smoke`: mijoz 37/37, hamkor 20/21 endpoint. Xato bergani `GET /venue/analytics/revenue`, sababi ilovadagi parametr xatosi (`period` → `current_from/…`). Tuzatildi.
+- E2E (brauzer): ro'yxatdan o'tgan mijoz parol bilan kiradi → to'yxona → narx bosqichi → bron (UI narxi backend bilan bir xil) → muassasa egasi panelda tasdiqlaydi → QR orqali check-in (`checked_in`). Restoranda stol broni ham o'tdi.
+- Shu sinovda topilib, ilovada tuzatilgan xatolar:
+  - `/venue/bookings` filtri: ilova `status` yuborardi, backend esa `statuses` (ro'yxat) kutadi, shuning uchun filtr jimgina ishlamasdi;
+  - dashboard'da `venue_id` yo'q edi (422);
+  - narx bosqichi chegarada (200 kishi) ilovada boshqa bosqich tanlanardi, mijozga backend'dagidan boshqa narx ko'rsatilardi;
+  - to'yxona kalendarida yopiq hafta kunlari tanlanardi (backend `venue_closed` qaytaradi);
+  - `queue_count` (bugun keladigan, tasdiqlangan mehmonlar) "Kutilayotgan bronlar" deb ko'rsatilardi.
 
 ## Tekshirish
 

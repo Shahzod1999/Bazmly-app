@@ -316,7 +316,8 @@
     "showAtEntrance": "Show the QR code at the entrance",
     "code": "Ticket code",
     "receipt": "Receipt number",
-    "addToWallet": "Add to Wallet"
+    "addToWallet": "Add to Wallet",
+    "payAtVenue": "Paid at the venue"
   },
   "places": {
     "title": "My bookings",
@@ -520,7 +521,9 @@
     "dayOff": "Day off",
     "inviteAccept": "Accept invitation",
     "newPassword": "New password",
-    "tempPassword": "Temporary password"
+    "tempPassword": "Temporary password",
+    "todayQueue": "Today's queue",
+    "todayQueueHint": "Confirmed guests expected today who haven't arrived yet"
   },
   "partnerRegister": {
     "title": "Add venue",

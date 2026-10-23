@@ -24,7 +24,7 @@ import { WizardHeader } from "../../../features/booking/StepHeader";
 import { ContactStep } from "../../../features/booking/ContactStep";
 import { goAfterBookingCreated } from "../../../features/booking/afterCreate";
 import { OptionCard } from "../../../features/booking/OptionCard";
-import { formatDate, formatMoney, toDateOnly, toE164 } from "../../../lib/format";
+import { formatDate, formatMoney, mondayBasedWeekday, parseDateOnly, toDateOnly, toE164 } from "../../../lib/format";
 
 const TOTAL = 4;
 const SLOTS = [
@@ -59,6 +59,11 @@ export default function HallBookingScreen() {
   const rangeEnd = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + 2, 0);
   const availability = useAvailability(id, toDateOnly(rangeStart), toDateOnly(rangeEnd));
   const blocked = useMemo(() => new Set(availability.data?.dates ?? []), [availability.data]);
+  // Yopiq hafta kunlari — backend bunday kunga bronni `venue_closed` bilan rad etadi
+  const closedWeekdays = useMemo(
+    () => new Set((venueQ.data?.working_hours ?? []).filter((h) => h.is_closed).map((h) => h.weekday)),
+    [venueQ.data],
+  );
 
   if (venueQ.isLoading) {
     return (
@@ -81,8 +86,12 @@ export default function HallBookingScreen() {
   // Narx bosqichlari: backend mehmonlar soniga mos bosqichni o'zi tanlaydi va mos bosqich
   // bo'lmasa bronni rad etadi (capacity_exceeded) — shuning uchun tanlov shu oraliqlarda cheklanadi
   const tiers = [...(venueQ.data?.guest_tiers ?? [])].sort((a, b) => a.min_guests - b.min_guests);
+  // Backend (venue_guest_tier_repository.get_for_guest_count) bilan bir xil: mos bosqichlar ichidan
+  // eng katta min_guests — chegarada (masalan 200: 150–200 va 200–300) yuqori bosqich tanlanadi
   const tierFor = (g: number) =>
-    tiers.find((tr) => g >= tr.min_guests && (tr.max_guests == null || g <= tr.max_guests)) ?? null;
+    tiers
+      .filter((tr) => g >= tr.min_guests && (tr.max_guests == null || g <= tr.max_guests))
+      .sort((a, b) => b.min_guests - a.min_guests)[0] ?? null;
   const currentTier = tierFor(draft.guests);
   const guestsMin = tiers.length ? tiers[0].min_guests : 1;
   const lastTier = tiers[tiers.length - 1];
@@ -96,7 +105,10 @@ export default function HallBookingScreen() {
     })[u];
 
   const canNext =
-    (step === 0 && !!draft.date && !blocked.has(draft.date)) ||
+    (step === 0 &&
+      !!draft.date &&
+      !blocked.has(draft.date) &&
+      !closedWeekdays.has(mondayBasedWeekday(parseDateOnly(draft.date)))) ||
     (step === 1 && draft.guests >= 1 && !!currentTier && draft.startTime < draft.endTime) ||
     (step === 2 && !!draft.serviceMode) ||
     step === 3;
@@ -165,6 +177,7 @@ export default function HallBookingScreen() {
               value={draft.date}
               onChange={(date) => update({ date })}
               blocked={blocked}
+              closedWeekdays={closedWeekdays}
               minDate={minDate}
               maxDate={maxDate}
               onMonthChange={(m) => setRangeStart(m)}

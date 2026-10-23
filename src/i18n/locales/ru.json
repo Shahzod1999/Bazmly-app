@@ -320,7 +320,8 @@
     "showAtEntrance": "Покажите QR-код на входе",
     "code": "Код билета",
     "receipt": "Номер чека",
-    "addToWallet": "Добавить в Wallet"
+    "addToWallet": "Добавить в Wallet",
+    "payAtVenue": "Расчёт на месте"
   },
   "places": {
     "title": "Мои брони",
@@ -524,7 +525,9 @@
     "dayOff": "Выходной",
     "inviteAccept": "Принять приглашение",
     "newPassword": "Новый пароль",
-    "tempPassword": "Временный пароль"
+    "tempPassword": "Временный пароль",
+    "todayQueue": "Очередь на сегодня",
+    "todayQueueHint": "Подтверждённые гости на сегодня, ещё не пришедшие"
   },
   "partnerRegister": {
     "title": "Добавить заведение",

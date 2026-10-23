@@ -13,10 +13,15 @@ export const catalogService = {
   },
 
   // Venue Services Pricing
-  async createVenueService(data: VenueServiceCreate): Promise<VenueServiceRead> {
+  async createVenueService(
+    data: VenueServiceCreate,
+    venueId: number | string,
+    groupId: number | string,
+  ): Promise<VenueServiceRead> {
     return apiFetch<VenueServiceRead>("/api/v1/venue/services", {
       method: "POST",
       body: JSON.stringify(data),
+      params: { venue_id: venueId, group_id: groupId },
     });
   },
 };

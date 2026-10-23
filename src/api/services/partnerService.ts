@@ -322,14 +322,19 @@ export const partnerService = {
     });
   },
 
+  /** Joriy va oldingi davr taqqoslash (backend: current_from/to, previous_from/to — YYYY-MM-DD) */
   async getRevenueAnalytics(
     venueId: number | string,
-    period: "week" | "month" | "year" = "week",
+    current: { from: string; to: string },
+    previous: { from: string; to: string },
   ): Promise<StatsTotalsRead> {
     return apiFetch<StatsTotalsRead>("/api/v1/venue/analytics/revenue", {
       params: {
         venue_id: venueId,
-        period,
+        current_from: current.from,
+        current_to: current.to,
+        previous_from: previous.from,
+        previous_to: previous.to,
       },
     });
   },

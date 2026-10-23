@@ -113,6 +113,12 @@ describe("apiFetch — boshqa xulq", () => {
     await expect(apiFetch("/api/v1/x", { skipAuth: true })).rejects.toMatchObject({ status: 0, code: "network_error" });
   });
 
+  it("buildUrl ro'yxatni FastAPI kutganidek takrorlanuvchi parametr qiladi", () => {
+    expect(buildUrl("/api/v1/venue/bookings", { venue_id: 1, statuses: ["pending", "confirmed"], x: [] })).toMatch(
+      /\?venue_id=1&statuses=pending&statuses=confirmed$/,
+    );
+  });
+
   it("buildUrl bo'sh/undefined parametrlarni tashlab yuboradi va kodlaydi", () => {
     const url = buildUrl("/api/v1/venues/search", { query: "Oltin saroy", district_id: 5, sort: "", min_rating: undefined, x: null });
     expect(url).toMatch(/\/api\/v1\/venues\/search\?query=Oltin%20saroy&district_id=5$/);

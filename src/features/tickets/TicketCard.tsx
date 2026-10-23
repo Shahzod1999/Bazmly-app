@@ -8,11 +8,13 @@ import { Badge, Text, toast } from "../../components/ui";
 import { useTheme } from "../../theme/ThemeProvider";
 import { radius } from "../../theme/tokens";
 import type { BookingOwnerDetail } from "../../api";
+import { useBookingVenueName } from "./useBookingVenueName";
 import { formatDate, formatMoney, formatTime } from "../../lib/format";
 import { statusTone } from "./status";
 
 /** "Rasmiy chipta" — QR kod bilan (kirishda ko'rsatiladi) */
 export function TicketCard({ detail, compact }: { detail: BookingOwnerDetail; compact?: boolean }) {
+  const venueName = useBookingVenueName(detail);
   const { t } = useTranslation();
   const { colors } = useTheme();
   const b = detail.booking;
@@ -34,7 +36,7 @@ export function TicketCard({ detail, compact }: { detail: BookingOwnerDetail; co
           </Text>
         </View>
         <Text variant="h1" style={{ marginTop: 8 }}>
-          {detail.venue_name}
+          {venueName}
         </Text>
         <Badge label={t(`status.${b.status}`)} tone={statusTone(b.status)} style={{ marginTop: 8 }} />
         <View style={styles.grid}>
@@ -44,7 +46,12 @@ export function TicketCard({ detail, compact }: { detail: BookingOwnerDetail; co
             value={`${formatTime(b.start_time)} – ${formatTime(b.end_time)}`}
           />
           <Field label={t("booking.guests")} value={t("common.guests", { count: b.guests_count })} />
-          <Field label={t("payment.total")} value={formatMoney(b.total_amount, b.currency)} accent />
+          <Field
+            label={t("payment.total")}
+            // Stol broni ko'pincha narxsiz (buyurtma joyida) — "0 so'm" o'rniga tushunarli matn
+            value={Number(b.total_amount) > 0 ? formatMoney(b.total_amount, b.currency) : t("tickets.payAtVenue")}
+            accent
+          />
         </View>
       </View>
 

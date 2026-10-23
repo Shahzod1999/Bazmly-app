@@ -10,6 +10,7 @@ import { TicketCard } from "../../features/tickets/TicketCard";
 import { useMaxBrightness } from "../../features/tickets/useMaxBrightness";
 import { PriceLines } from "../../features/booking/PriceLines";
 import { DepositNotice } from "../../features/booking/DepositNotice";
+import { useBookingVenueName } from "../../features/tickets/useBookingVenueName";
 import { shareLink } from "../../lib/linking";
 import { useIsAuthed } from "../../stores/auth";
 import { requireAuth } from "../../features/auth/redirect";
@@ -22,6 +23,7 @@ export default function TicketScreen() {
   const authed = useIsAuthed();
   const q = useBooking(id);
   useMaxBrightness(!!q.data);
+  const venueName = useBookingVenueName(q.data);
 
   if (!authed) {
     return (
@@ -54,7 +56,7 @@ export default function TicketScreen() {
             <IconButton
               icon={<Share2 size={20} color={colors.text} />}
               accessibilityLabel={t("common.share")}
-              onPress={() => shareLink(`${q.data!.venue_name} — ${b?.booking_date}`, `/ticket/${id}`)}
+              onPress={() => shareLink(`${venueName} — ${b?.booking_date}`, `/ticket/${id}`)}
             />
           ) : undefined
         }

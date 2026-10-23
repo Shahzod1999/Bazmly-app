@@ -16,6 +16,8 @@ import {
   CheckInRequest,
   SeatedSummary,
   VenueBookingRead,
+  OrderStatus,
+  BookingStatus,
 } from "../types";
 
 export const orderService = {
@@ -32,17 +34,9 @@ export const orderService = {
     });
   },
 
-  async listOrders(
-    venueId: number | string,
-    status?: string | null,
-    businessDate?: string | null,
-  ): Promise<OrderListItem[]> {
+  async listOrders(venueId: number | string, statuses?: OrderStatus[] | null): Promise<OrderListItem[]> {
     return apiFetch<OrderListItem[]>("/api/v1/venue/orders", {
-      params: {
-        venue_id: venueId,
-        status: status || undefined,
-        business_date: businessDate || undefined,
-      },
+      params: { venue_id: venueId, statuses: statuses?.length ? statuses : undefined },
     });
   },
 
@@ -121,14 +115,15 @@ export const orderService = {
   async getVenueBookings(
     venueId: number | string,
     day?: string | null,
-    status?: string | null,
+    status?: BookingStatus | null,
   ): Promise<VenueBookingRead[]> {
     const targetDay = day || new Date().toISOString().split("T")[0];
     return apiFetch<VenueBookingRead[]>("/api/v1/venue/bookings", {
       params: {
         venue_id: venueId,
         day: targetDay,
-        status: status || undefined,
+        // Backend: `statuses` (ro'yxat). Avval `status` yuborilardi va filtr jimgina e'tiborsiz qolardi
+        statuses: status ? [status] : undefined,
       },
     });
   },

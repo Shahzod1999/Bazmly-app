@@ -18,6 +18,7 @@ import {
   type StaffInvitationCreate,
   type MenuItemCreate,
   type VenueGroupWithBranchCreate,
+  type BookingStatus,
 } from "./index";
 import { useIsAuthed } from "../stores/auth";
 
@@ -365,12 +366,13 @@ export function useMyVenues(groupId?: number) {
 export function useDashboard(groupId?: number, venueId?: number) {
   return useQuery({
     queryKey: qk.dashboard(groupId, venueId),
-    queryFn: () => partnerService.getDashboardAnalytics(groupId!, venueId),
-    enabled: !!groupId,
+    queryFn: () => partnerService.getDashboardAnalytics(groupId!, venueId!),
+    // Backend group_id va venue_id ikkalasini talab qiladi (aks holda 422)
+    enabled: !!groupId && !!venueId,
   });
 }
 
-export function useVenueBookings(venueId?: number, status?: string, date?: string) {
+export function useVenueBookings(venueId?: number, status?: BookingStatus, date?: string) {
   return useQuery({
     queryKey: qk.venueBookings(venueId, status, date),
     queryFn: () => orderService.getVenueBookings(venueId!, date, status),

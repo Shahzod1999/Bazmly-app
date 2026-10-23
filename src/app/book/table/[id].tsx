@@ -197,6 +197,7 @@ export default function TableBookingScreen() {
                     }}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
+                    accessibilityLabel={formatDate(k)}
                     style={[
                       styles.day,
                       {

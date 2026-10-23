@@ -13,13 +13,15 @@ interface Props {
   onChange: (date: string) => void;
   /** Band (tanlab bo'lmaydigan) kunlar: YYYY-MM-DD */
   blocked?: Set<string>;
+  /** Muassasa ishlamaydigan hafta kunlari (0 = Dushanba, backend formati) */
+  closedWeekdays?: Set<number>;
   minDate: Date;
   maxDate: Date;
   /** Ko'rsatilayotgan oy o'zgarganda (availability so'rash uchun) */
   onMonthChange?: (firstDay: Date) => void;
 }
 
-export function Calendar({ value, onChange, blocked, minDate, maxDate, onMonthChange }: Props) {
+export function Calendar({ value, onChange, blocked, closedWeekdays, minDate, maxDate, onMonthChange }: Props) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const initial = value ? parseDateOnly(value) : minDate;
@@ -81,7 +83,8 @@ export function Calendar({ value, onChange, blocked, minDate, maxDate, onMonthCh
         {days.map((d, i) => {
           if (!d) return <View key={i} style={styles.cell} />;
           const k = toDateOnly(d);
-          const disabled = k < minKey || k > maxKey || !!blocked?.has(k);
+          const disabled =
+            k < minKey || k > maxKey || !!blocked?.has(k) || !!closedWeekdays?.has(mondayBasedWeekday(d));
           const isBlocked = !!blocked?.has(k);
           const selected = value === k;
           return (

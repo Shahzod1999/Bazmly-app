@@ -330,7 +330,13 @@ async function main() {
     skip("Hamkor endpointlari", "SMOKE_STAFF_LOGIN/SMOKE_STAFF_PASSWORD yoki SMOKE_PHONE berilmagan");
   } else {
     const t = { token: partnerToken };
-    const myGroup = await check("", "GET", "/venue/groups/me", { ...t, schema: ref("VenueGroupRead") });
+    // Mijoz tokeni bilan sinalayotgan bo'lsa, guruh yo'qligi (404) xato emas
+    const usingCustomerToken = !(env.SMOKE_STAFF_LOGIN && env.SMOKE_STAFF_PASSWORD);
+    const myGroup = await check("", "GET", "/venue/groups/me", {
+      ...t,
+      schema: ref("VenueGroupRead"),
+      expect: usingCustomerToken ? [200, 404] : [200],
+    });
     if (!myGroup) {
       skip("Qolgan hamkor endpointlari", "akkauntda hamkor guruhi yo'q");
     } else {

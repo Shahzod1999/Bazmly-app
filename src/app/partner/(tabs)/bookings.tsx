@@ -28,7 +28,7 @@ import type { BookingListItem, BookingStatus } from "../../../api";
 import { PartnerGate } from "../../../features/partner/PartnerGate";
 import { usePartnerContext } from "../../../features/partner/usePartnerContext";
 import { BookingCard } from "../../../features/tickets/BookingCard";
-import { mondayBasedWeekday, toDateOnly, weekdayShort } from "../../../lib/format";
+import { formatDate, mondayBasedWeekday, toDateOnly, weekdayShort } from "../../../lib/format";
 import { haptic } from "../../../lib/haptics";
 
 export default function PartnerBookings() {
@@ -153,6 +153,9 @@ function BookingList({ venueId }: { venueId: number }) {
           return (
             <Pressable
               key={k}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={formatDate(k)}
               onPress={() => {
                 haptic.selection();
                 setDay(k);
