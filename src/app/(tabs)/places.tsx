@@ -23,6 +23,7 @@ import { GuestGate } from "../../features/auth/GuestGate";
 import { BookingCard } from "../../features/tickets/BookingCard";
 import { ACTIVE_STATUSES } from "../../features/tickets/status";
 import { toDateOnly } from "../../lib/format";
+import { usePrefs } from "../../stores/prefs";
 
 export default function PlacesScreen() {
   const { t } = useTranslation();
@@ -32,6 +33,7 @@ export default function PlacesScreen() {
   const [tab, setTab] = useState<"active" | "past">("active");
   const q = useMyBookings();
   const cancel = useCancelBooking();
+  const reviewed = usePrefs((s) => s.reviewedBookings);
   const today = toDateOnly(new Date());
 
   const all = q.data ?? [];
@@ -48,6 +50,7 @@ export default function PlacesScreen() {
       title: t("places.cancelTitle"),
       message: `${b.venue_name}`,
       confirmLabel: t("places.cancel"),
+      cancelLabel: t("common.back"),
       destructive: true,
       input: { label: t("places.cancelReason") },
     });
@@ -87,7 +90,7 @@ export default function PlacesScreen() {
         />,
       );
     }
-    if (b.status === "completed") {
+    if (b.status === "completed" && !reviewed.includes(b.id)) {
       buttons.push(
         <Button
           key="review"

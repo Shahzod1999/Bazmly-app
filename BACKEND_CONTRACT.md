@@ -117,19 +117,53 @@ DELETE /venue/venues/{id}/photos/{photo_id} → 204
 - 1-venue ("Bahor Chilonzor", 96 o'rin) uchun `GET /venues/1/tables` har doim bo'sh qaytadi. Stollar kiritilmagan bo'lsa, mijoz uni bron qila olmaydi.
 - To'yxonalarda `guest_tiers` bo'lmasa, onlayn bron yopiq bo'ladi.
 
+### 9. Mijoz bronga sharh qoldirganini bilib bo'lmaydi
+
+`BookingListItem` da `has_review` maydoni ham, "mening sharhlarim" endpointi ham yo'q. Ilova sharh qoldirilgan bronlarni qurilmada eslab qoladi va `409 already_reviewed` kelsa ham shunday belgilaydi. Boshqa qurilmada esa "Sharh yozish" tugmasi qayta chiqadi. Taklif: `BookingListItem.has_review: bool`.
+
+### 10. Chat: muassasa javob bera olmaydi (reliz oldidan muhim)
+
+Mijoz `POST /conversations` va `POST /conversations/{id}/messages` orqali yozadi. Lekin muassasa tomoni uchun router yo'q: `ConversationService.list_for_venue` bor, ammo hech qaysi endpoint uni chaqirmaydi va `sender_type=venue` bilan xabar yuborib bo'lmaydi. Natijada mijoz xabari hech kimga yetib bormaydi. Kerak:
+
+```
+GET  /venue/conversations?venue_id=          → ConversationListItem[] (mijoz ismi bilan)
+GET  /venue/conversations/{id}/messages      → MessageRead[]
+POST /venue/conversations/{id}/messages      { body } → MessageRead  (sender_type=venue)
+POST /venue/conversations/{id}/read
+```
+
+Shuningdek `ConversationListItem` da `venue_name` yo'q: ilova nomni har bir suhbat uchun `GET /venues/{id}` dan oladi. Endpointlar qo'shilgach, hamkor paneliga "Xabarlar" bo'limi qo'shiladi. Ilovadagi "Ma'muriyat onlayn" yozuvi olib tashlandi, chunki u haqiqatga mos emas edi.
+
+### 11. Do'st qo'shib bo'lmaydi
+
+`POST /users/me/friends` `addressee_id` (foydalanuvchi ID) talab qiladi, lekin foydalanuvchini telefon yoki ism bo'yicha topadigan endpoint yo'q. Shuning uchun ilovada do'stlar ro'yxati va kelgan so'rovlarni qabul qilish bor, ammo so'rov yuborish yo'q. Taklif: `POST /users/me/friends { phone }` yoki `GET /users/lookup?phone=`.
+
+### 12. Yangi tarmoq `draft` holatida qoladi
+
+Ro'yxatdan o'tish ustasi oxirida filial `active` bo'ladi va qidiruvda ko'rinadi, tarmoq (`venue_groups.status`) esa `draft` bo'lib qoladi. Uni faqat admin o'zgartiradi. Agar bu moderatsiya bosqichi bo'lsa, qidiruv ham tarmoq holatini tekshirishi kerak. Aks holda tekshirilmagan muassasa darhol mijozlarga ko'rinadi.
+
 ## Lokal backend bilan tekshirilgan (2026-10-23)
 
 `bazmly-backend` (barcha migratsiyalar va `scripts.seed_demo`) lokal Postgres/PostGIS'da ishga tushirilib, ilova unga ulangan holda sinaldi. Mock ishlatilmagan.
 
-- `npm run smoke`: mijoz 37/37, muassasa egasi 21/21 endpoint. Avval `GET /venue/analytics/revenue` xato berdi: ilova noto'g'ri parametr (`period` → `current_from/…`) va noto'g'ri javob tipi (`PeriodComparisonRead`) ishlatardi. Tuzatildi.
+- `npm run smoke`: mijoz 37/37, muassasa egasi 52/52 endpoint. Avval `GET /venue/analytics/revenue` xato berdi: ilova noto'g'ri parametr (`period` → `current_from/…`) va noto'g'ri javob tipi (`PeriodComparisonRead`) ishlatardi. Tuzatildi.
 - Xodim akkaunti (`bzmana201`) bilan: kirish ishlaydi, `/venue/groups/me` → 404 (§0).
 - E2E (brauzer): ro'yxatdan o'tgan mijoz parol bilan kiradi → to'yxona → narx bosqichi → bron (UI narxi backend bilan bir xil) → muassasa egasi panelda tasdiqlaydi → QR orqali check-in (`checked_in`). Restoranda stol broni ham o'tdi.
+- Hamkor paneli (E2E): bronni rad etish, check-out, kategoriya va taom qo'shish, xodim taklifi, muassasa profili va ish vaqtini saqlash. Yangi hamkorning ro'yxatdan o'tishi: tarmoq, filial, 8 ta stol, onboarding bosqichlari → filial `active`, qidiruvda ko'rinadi, ilova panelga o'tkazadi.
+- Mijoz (E2E): sharh qoldirish, bronni bekor qilish, sevimlilar, muassasaga xabar yozish, xabarlar ro'yxati, do'stlar va bildirishnomalar ekranlari.
 - Shu sinovda topilib, ilovada tuzatilgan xatolar:
   - `/venue/bookings` filtri: ilova `status` yuborardi, backend esa `statuses` (ro'yxat) kutadi, shuning uchun filtr jimgina ishlamasdi;
   - dashboard'da `venue_id` yo'q edi (422);
   - narx bosqichi chegarada (200 kishi) ilovada boshqa bosqich tanlanardi, mijozga backend'dagidan boshqa narx ko'rsatilardi;
   - to'yxona kalendarida yopiq hafta kunlari tanlanardi (backend `venue_closed` qaytaradi);
-  - `queue_count` (bugun keladigan, tasdiqlangan mehmonlar) "Kutilayotgan bronlar" deb ko'rsatilardi.
+  - `queue_count` (bugun keladigan, tasdiqlangan mehmonlar) "Kutilayotgan bronlar" deb ko'rsatilardi;
+  - yangi ro'yxatdan o'tgan hamkor panelga kira olmasdi: backend uning `role` ini `customer` qoldiradi. Endi huquq tarmoq egaligidan ham aniqlanadi (`GET /venue/groups/me` → 200);
+  - ro'yxatdan o'tishda stollar yaratilmasdi va onboarding yakunlanmasdi, filial `draft` bo'lib qolardi va qidiruvda ko'rinmasdi;
+  - xodim taklifida "Egasi" roli tanlanardi (birinchi rol standart edi), ya'ni tasodifan begona odamga egalik huquqi berilishi mumkin edi;
+  - tarmoq darajasidagi xodimlar ro'yxatda ikki marta chiqardi;
+  - sharh qoldirilgan bronda "Sharh yozish" tugmasi qolardi va qayta yuborilganda 409 xato chiqardi;
+  - xabarlar ro'yxatida muassasa nomi o'rniga "Muassasa #2" ko'rsatilardi;
+  - bronni bekor qilish oynasida ikkala tugma ham "Bekor qilish" deb yozilgan edi.
 
 ## Tekshirish
 

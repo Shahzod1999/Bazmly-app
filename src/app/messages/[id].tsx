@@ -16,7 +16,7 @@ import {
 } from "../../components/ui";
 import { useTheme } from "../../theme/ThemeProvider";
 import { fonts, radius } from "../../theme/tokens";
-import { useMessages, useSendMessage } from "../../api/queries";
+import { useConversations, useMessages, useSendMessage, useVenue } from "../../api/queries";
 import { engagementService } from "../../api";
 import { useAuth } from "../../stores/auth";
 import { useFont } from "../../theme/fontFamily";
@@ -33,6 +33,11 @@ export default function ChatScreen() {
   const [text, setText] = useState("");
   const listRef = useRef<FlatList>(null);
   const inputFont = useFont(fonts.regular);
+  // Bildirishnoma yoki deep link orqali ochilganda nom parametrda bo'lmaydi
+  const convs = useConversations();
+  const venueId = venue ? 0 : (convs.data?.find((c) => c.id === cid)?.venue_id ?? 0);
+  const venueQ = useVenue(venueId);
+  const title = venue || venueQ.data?.venue.name || t("chat.venue");
 
   useEffect(() => {
     if (cid) void engagementService.markConversationRead(cid).catch(() => {});
@@ -58,7 +63,7 @@ export default function ChatScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={{ paddingTop: insets.top, paddingHorizontal: 20 }}>
-        <Header title={venue || t("chat.venue")} subtitle={t("chat.online")} />
+        <Header title={title} />
       </View>
       {q.isLoading ? (
         <View style={{ padding: 20, gap: 10 }}>

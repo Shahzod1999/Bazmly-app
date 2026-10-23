@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { MessageCircle } from "lucide-react-native";
 import { Badge, Card, EmptyState, ErrorState, Header, Screen, Skeleton, Text } from "../../components/ui";
 import { useTheme } from "../../theme/ThemeProvider";
-import { useConversations } from "../../api/queries";
+import { useConversations, useVenue } from "../../api/queries";
+import type { ConversationListItem } from "../../api";
 import { formatDateTime } from "../../lib/format";
 
 export default function ConversationsScreen() {
@@ -40,32 +41,41 @@ export default function ConversationsScreen() {
               title={t("profile.messagesEmpty")}
             />
           }
-          renderItem={({ item }) => (
-            <Card
-              onPress={() => router.push({ pathname: "/messages/[id]", params: { id: String(item.id) } })}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text variant="h3">
-                    {t("chat.venue")} #{item.venue_id}
-                  </Text>
-                  <Text variant="small" color="textMuted" numberOfLines={1} style={{ marginTop: 2 }}>
-                    {item.last_message?.body ?? "—"}
-                  </Text>
-                </View>
-                <View style={{ alignItems: "flex-end", gap: 6 }}>
-                  <Text variant="caption" color="textSubtle">
-                    {formatDateTime(item.last_message_at)}
-                  </Text>
-                  {item.unread_count ? (
-                    <Badge label={String(item.unread_count)} tone="primary" solid />
-                  ) : null}
-                </View>
-              </View>
-            </Card>
-          )}
+          renderItem={({ item }) => <ConversationRow item={item} />}
         />
       )}
     </Screen>
+  );
+}
+
+/** `ConversationListItem` da muassasa nomi yo'q (BACKEND_CONTRACT §10) — nom `GET /venues/{id}` dan olinadi */
+function ConversationRow({ item }: { item: ConversationListItem }) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const venue = useVenue(item.venue_id);
+  const name = venue.data?.venue.name ?? t("chat.venue");
+  return (
+    <Card
+      onPress={() =>
+        router.push({ pathname: "/messages/[id]", params: { id: String(item.id), venue: name } })
+      }
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View style={{ flex: 1 }}>
+          <Text variant="h3" numberOfLines={1}>
+            {name}
+          </Text>
+          <Text variant="small" color="textMuted" numberOfLines={1} style={{ marginTop: 2 }}>
+            {item.last_message?.body ?? "—"}
+          </Text>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 6 }}>
+          <Text variant="caption" color="textSubtle">
+            {formatDateTime(item.last_message_at)}
+          </Text>
+          {item.unread_count ? <Badge label={String(item.unread_count)} tone="primary" solid /> : null}
+        </View>
+      </View>
+    </Card>
   );
 }

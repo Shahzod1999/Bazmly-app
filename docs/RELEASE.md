@@ -45,7 +45,8 @@ Jamoaga tarqatish uchun: `--profile preview` (o'rnatiladigan ilova, dev serversi
 
 Talablar:
 1. Backend'da push yuborish ulangan bo'lishi kerak (`BACKEND_CONTRACT.md` → 1-masala). Aks holda mijozlar bron tasdiqlanganini bilmaydi.
-2. Domen (`APP_DOMAIN`, standart `bazmly.uz`) tasdiqlangan bo'lishi va universal link fayllari joylangan bo'lishi kerak:
+2. Backend'da muassasa uchun chat endpointlari bo'lishi kerak (`BACKEND_CONTRACT.md` → 10-masala). Aks holda mijoz xabarlari muassasaga yetib bormaydi. Xodimlar uchun ish joyi endpointi ham kerak (0-masala).
+3. Domen (`APP_DOMAIN`, standart `bazmly.uz`) tasdiqlangan bo'lishi va universal link fayllari joylangan bo'lishi kerak:
    - `https://bazmly.uz/.well-known/apple-app-site-association`
    - `https://bazmly.uz/.well-known/assetlinks.json`
    Fayllar namunasi pastda.

@@ -436,15 +436,15 @@
     "placeholder": "Type a message...",
     "send": "Send",
     "empty": "Write your first message to the venue",
-    "venue": "Venue",
-    "online": "Management online"
+    "venue": "Venue"
   },
   "review": {
     "title": "Leave a review",
     "ratingLabel": "Your rating",
     "commentPlaceholder": "Share your impressions",
     "submit": "Submit",
-    "thanks": "Thank you! Your review will appear after moderation"
+    "thanks": "Thank you! Your review will appear after moderation",
+    "already": "You've already reviewed this booking"
   },
   "partner": {
     "panel": "Partner panel",

@@ -4,6 +4,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Button, Header, Input, RatingStars, Screen, Text, errorMessage, toast } from "../../components/ui";
 import { useCreateReview } from "../../api/queries";
+import { BazmlyApiError } from "../../api/client";
+import { usePrefs } from "../../stores/prefs";
 
 export default function ReviewScreen() {
   const { bookingId, venue } = useLocalSearchParams<{ bookingId: string; venue?: string }>();
@@ -12,16 +14,26 @@ export default function ReviewScreen() {
   const create = useCreateReview();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
+  const markReviewed = usePrefs((s) => s.markReviewed);
 
   const submit = () =>
     create.mutate(
       { booking_id: Number(bookingId), rating, comment: comment.trim() || null },
       {
         onSuccess: () => {
+          markReviewed(Number(bookingId));
           toast.success(t("review.thanks"));
           router.back();
         },
-        onError: (e) => toast.error(errorMessage(e, t("common.errorGeneric"))),
+        onError: (e) => {
+          if (e instanceof BazmlyApiError && e.code === "already_reviewed") {
+            markReviewed(Number(bookingId));
+            toast.info(t("review.already"));
+            router.back();
+            return;
+          }
+          toast.error(errorMessage(e, t("common.errorGeneric")));
+        },
       },
     );
 
