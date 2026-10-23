@@ -36,6 +36,16 @@ Swagger: `/api/docs`. Mijoz ilovasi uchun alohida hujjat `/api/docs/app` da, bos
 
 ## Backend uchun ochiq masalalar
 
+### 0. Xodim o'z ish joyini aniqlay olmaydi (muhim)
+
+`GET /venue/groups/me` faqat tarmoq **egasi** uchun ishlaydi. Menejer, ofitsiant va boshqa xodimlar (`bzmana201` va h.k.) uchun u `404 "Sizda hali tarmoq yo'q"` qaytaradi. Boshqa barcha `/venue/...` endpointlari esa `venue_id` yoki `group_id` talab qiladi. Natijada xodim ilovaga kiradi, lekin qaysi filialda ishlashini bilib bo'lmaydi va bronlar, check-in hamda stollar unga yopiq. Ilova hozir xodimga "Ish joyingiz hali ulanmagan" deb ko'rsatadi. Kerak:
+
+```
+GET /venue/staff/me/workplaces → [{ venue_id, venue_name, group_id, role: StaffRoleRead, permissions: string[] }]
+```
+
+Endpoint qo'shilgach, ilova xodimni o'sha filial paneliga olib kiradi. Panel bo'limlari `permissions` ga qarab ko'rsatiladi: ofitsiantga faqat check-in va stollar.
+
 ### 1. Push haqiqatda yuborilmaydi (muhim)
 
 `app/core/transports.py` da standart `LoggingPushSender` faqat log yozadi. Ilova `POST /users/me/devices` ga **Expo push token** (`ExponentPushToken[...]`) yuboradi. Uni yetkazish uchun sender quyidagicha bo'lishi mumkin:
@@ -111,7 +121,8 @@ DELETE /venue/venues/{id}/photos/{photo_id} → 204
 
 `bazmly-backend` (barcha migratsiyalar va `scripts.seed_demo`) lokal Postgres/PostGIS'da ishga tushirilib, ilova unga ulangan holda sinaldi. Mock ishlatilmagan.
 
-- `npm run smoke`: mijoz 37/37, hamkor 20/21 endpoint. Xato bergani `GET /venue/analytics/revenue`, sababi ilovadagi parametr xatosi (`period` → `current_from/…`). Tuzatildi.
+- `npm run smoke`: mijoz 37/37, muassasa egasi 21/21 endpoint. Avval `GET /venue/analytics/revenue` xato berdi: ilova noto'g'ri parametr (`period` → `current_from/…`) va noto'g'ri javob tipi (`PeriodComparisonRead`) ishlatardi. Tuzatildi.
+- Xodim akkaunti (`bzmana201`) bilan: kirish ishlaydi, `/venue/groups/me` → 404 (§0).
 - E2E (brauzer): ro'yxatdan o'tgan mijoz parol bilan kiradi → to'yxona → narx bosqichi → bron (UI narxi backend bilan bir xil) → muassasa egasi panelda tasdiqlaydi → QR orqali check-in (`checked_in`). Restoranda stol broni ham o'tdi.
 - Shu sinovda topilib, ilovada tuzatilgan xatolar:
   - `/venue/bookings` filtri: ilova `status` yuborardi, backend esa `statuses` (ro'yxat) kutadi, shuning uchun filtr jimgina ishlamasdi;

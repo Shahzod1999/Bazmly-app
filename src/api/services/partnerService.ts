@@ -27,7 +27,7 @@ import {
   BranchAvailabilityUpdate,
   DashboardRead,
   VenueDailyStatsRead,
-  StatsTotalsRead,
+  PeriodComparisonRead,
 } from "../types";
 
 export const partnerService = {
@@ -327,8 +327,8 @@ export const partnerService = {
     venueId: number | string,
     current: { from: string; to: string },
     previous: { from: string; to: string },
-  ): Promise<StatsTotalsRead> {
-    return apiFetch<StatsTotalsRead>("/api/v1/venue/analytics/revenue", {
+  ): Promise<PeriodComparisonRead> {
+    return apiFetch<PeriodComparisonRead>("/api/v1/venue/analytics/revenue", {
       params: {
         venue_id: venueId,
         current_from: current.from,

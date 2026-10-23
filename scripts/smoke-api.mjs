@@ -354,7 +354,17 @@ async function main() {
         await check("bugun", "GET", "/venue/bookings", { ...t, query: { venue_id: vid, day: daysFromNow(0) }, schema: arrayOf("VenueBookingRead") });
         await check("", "GET", "/venue/analytics/dashboard", { ...t, query: { group_id: gid, venue_id: vid }, schema: ref("DashboardRead") });
         await check("7 kun", "GET", "/venue/analytics/daily", { ...t, query: { venue_id: vid, date_from: daysFromNow(-7), date_to: daysFromNow(0) }, schema: arrayOf("VenueDailyStatsRead") });
-        await check("hafta", "GET", "/venue/analytics/revenue", { ...t, query: { venue_id: vid, period: "week" }, schema: ref("StatsTotalsRead") });
+        await check("bu hafta / o'tgan hafta", "GET", "/venue/analytics/revenue", {
+          ...t,
+          query: {
+            venue_id: vid,
+            current_from: daysFromNow(-6),
+            current_to: daysFromNow(0),
+            previous_from: daysFromNow(-13),
+            previous_to: daysFromNow(-7),
+          },
+          schema: ref("PeriodComparisonRead"),
+        });
         await check("", "GET", "/venue/staff", { ...t, query: { group_id: gid, venue_id: vid }, schema: arrayOf("VenueStaffListItem") });
         await check("", "GET", "/venue/staff/counts", { ...t, query: { group_id: gid }, schema: ref("StaffCountsRead") });
         await check("", "GET", "/venue/staff/roles", { ...t, schema: arrayOf("StaffRoleRead") });

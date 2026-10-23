@@ -522,7 +522,10 @@
     "newPassword": "Yangi parol",
     "tempPassword": "Vaqtinchalik parol",
     "todayQueue": "Bugungi navbat",
-    "todayQueueHint": "Bugun keladigan, hali kirmagan mehmonlar"
+    "todayQueueHint": "Bugun keladigan, hali kirmagan mehmonlar",
+    "staffNoWorkplace": "Ish joyingiz hali ulanmagan",
+    "staffNoWorkplaceHint": "Xodimlar uchun panel ishga tushirilmoqda. Hozircha bronlar va check-in muassasa egasi akkauntida mavjud.",
+    "openCustomer": "Mijoz rejimini ochish"
   },
   "partnerRegister": {
     "title": "Muassasa qo'shish",
