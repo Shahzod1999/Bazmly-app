@@ -549,7 +549,11 @@
     "finishTitle": "Tayyor!",
     "finishText": "Muassasangiz moderatsiyaga yuborildi. Tasdiqlangach mijozlar bron qila oladi.",
     "submit": "Muassasani yaratish",
-    "toPanel": "Panelga o'tish"
+    "toPanel": "Panelga o'tish",
+    "tablesTitle": "Stollar: necha kishilikdan nechta",
+    "tableSize": "{{count}} kishilik",
+    "tableSizeA11y": "{{count}} kishilik stollar soni",
+    "tablesTotal": "Jami: {{tables}} ta stol, {{seats}} o'rin"
   },
   "errors": {
     "required": "Majburiy maydon",

@@ -550,7 +550,11 @@
     "finishTitle": "Done!",
     "finishText": "Your venue was sent for moderation. Customers can book once it's approved.",
     "submit": "Create venue",
-    "toPanel": "Go to panel"
+    "toPanel": "Go to panel",
+    "tablesTitle": "Tables: how many of each size",
+    "tableSize": "{{count}}-seat",
+    "tableSizeA11y": "Number of {{count}}-seat tables",
+    "tablesTotal": "Total: {{tables}} tables, {{seats}} seats"
   },
   "errors": {
     "required": "Required field",

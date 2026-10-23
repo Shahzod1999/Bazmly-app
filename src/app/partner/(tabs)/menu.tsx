@@ -126,7 +126,11 @@ export default function PartnerMenu() {
                           {m.name}
                         </Text>
                         <Text variant="bodyMedium" color="primary" tabular>
-                          {formatMoney(m.effective_price, m.currency)}
+                          {m.effective_price
+                            ? formatMoney(m.effective_price, m.currency)
+                            : m.price_from
+                              ? t("home.fromPrice", { price: formatMoney(m.price_from, m.currency) })
+                              : "—"}
                         </Text>
                       </View>
                       <Badge

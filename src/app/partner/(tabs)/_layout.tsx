@@ -11,7 +11,7 @@ import {
   Users,
 } from "lucide-react-native";
 import { AppTabBar } from "../../../components/TabBar";
-import { useAuth, isPartnerRole } from "../../../stores/auth";
+import { useAuth, useIsPartner } from "../../../stores/auth";
 import { useTheme } from "../../../theme/ThemeProvider";
 
 export default function PartnerTabsLayout() {
@@ -19,11 +19,11 @@ export default function PartnerTabsLayout() {
   const router = useRouter();
   const { colors } = useTheme();
   const status = useAuth((s) => s.status);
-  const role = useAuth((s) => s.user?.role);
+  const partner = useIsPartner();
 
   if (status !== "authed")
     return <Redirect href={{ pathname: "/(auth)/phone", params: { redirect: "/partner" } }} />;
-  if (!isPartnerRole(role)) return <Redirect href="/" />;
+  if (!partner) return <Redirect href="/" />;
 
   return (
     <Tabs

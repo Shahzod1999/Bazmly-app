@@ -70,7 +70,12 @@ describe("auth store — telefon bilan kirish", () => {
       c.path === "/auth/password" ? { status: 204 } : c.path === "/auth/login" ? { body: tokens(4) } : { body: me },
     );
     await useAuth.getState().setPassword("yangiParol1");
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /auth/password", "POST /auth/login", "GET /users/me"]);
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      "POST /auth/password",
+      "POST /auth/login",
+      "GET /users/me",
+      "GET /venue/groups/me", // hamkor panelga kirish huquqi (tarmoq egasimi)
+    ]);
     expect(calls[0].body).toEqual({ new_password: "yangiParol1", current_password: null });
     expect(calls[1].body).toEqual({ phone: "+998901234567", password: "yangiParol1" });
     expect(getAccessToken()).toBe("acc4");

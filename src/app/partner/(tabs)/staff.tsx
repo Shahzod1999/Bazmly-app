@@ -26,7 +26,6 @@ import {
   useInviteStaff,
   useSetStaffActive,
   useStaff,
-  useStaffCounts,
   useStaffRoles,
 } from "../../../api/queries";
 import type { StaffInvitationCreated } from "../../../api";
@@ -39,12 +38,19 @@ export default function PartnerStaff() {
   const { colors } = useTheme();
   const ctx = usePartnerContext();
   const staff = useStaff(ctx.groupId);
-  const counts = useStaffCounts(ctx.groupId);
   const roles = useStaffRoles();
+  // Ro'yxat tanlangan filial bo'yicha: shu filial xodimlari + tarmoq darajasidagilar (venue_id = null).
+  // Aks holda ikki filialda ishlaydigan odam ikki marta chiqadi.
+  const list = (staff.data ?? []).filter((s) => s.venue_id == null || s.venue_id === ctx.venueId);
+  const activeCount = list.filter((s) => s.is_active).length;
   const invite = useInviteStaff(ctx.groupId, ctx.venueId);
   const setActive = useSetStaffActive(ctx.venueId);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", roleId: 0 });
+  // Taklif orqali "Egasi" berilmaydi; filial lavozimlari birinchi
+  const invitableRoles = (roles.data ?? [])
+    .filter((r) => r.slug !== "owner")
+    .sort((a, b) => Number(a.scope === "group") - Number(b.scope === "group") || a.sort_order - b.sort_order);
   const [created, setCreated] = useState<StaffInvitationCreated | null>(null);
 
   const submit = () =>
@@ -70,8 +76,8 @@ export default function PartnerStaff() {
         large
         title={t("tabs.staff")}
         subtitle={
-          counts.data
-            ? t("partner.staffCount", { active: counts.data.active, total: counts.data.total })
+          staff.data
+            ? t("partner.staffCount", { active: activeCount, total: list.length })
             : undefined
         }
         right={
@@ -80,7 +86,9 @@ export default function PartnerStaff() {
             variant="primary"
             accessibilityLabel={t("partner.invite")}
             onPress={() => {
-              setForm({ name: "", phone: "", roleId: roles.data?.[0]?.id ?? 0 });
+              // Lavozim ataylab tanlanmagan: avval birinchi rol — "Egasi" — standart edi va
+              // e'tiborsiz qolsa yangi xodim tarmoq egasi huquqini olardi
+              setForm({ name: "", phone: "", roleId: 0 });
               setOpen(true);
             }}
           />
@@ -94,7 +102,7 @@ export default function PartnerStaff() {
             <ErrorState error={staff.error} onRetry={() => staff.refetch()} />
           ) : (
             <FlatList
-              data={staff.data ?? []}
+              data={list}
               keyExtractor={(s) => String(s.id)}
               contentContainerStyle={{ gap: 10, paddingBottom: 24, flexGrow: 1 }}
               refreshControl={
@@ -177,7 +185,7 @@ export default function PartnerStaff() {
             {t("partner.inviteRole")}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {(roles.data ?? []).map((r) => (
+            {invitableRoles.map((r) => (
               <Chip
                 key={r.id}
                 label={r.name}

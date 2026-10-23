@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useAuth, isPartnerRole } from "../../stores/auth";
+import { isPartner, useAuth } from "../../stores/auth";
 import { usePrefs } from "../../stores/prefs";
 
 /**
@@ -9,13 +9,12 @@ import { usePrefs } from "../../stores/prefs";
  *  - aks holda — bosh sahifa
  */
 export function finishAuth(redirect?: string | null) {
-  const user = useAuth.getState().user;
   if (router.canDismiss()) router.dismissAll();
   if (redirect && redirect.startsWith("/")) {
     router.replace(redirect as never);
     return;
   }
-  if (isPartnerRole(user?.role)) {
+  if (isPartner()) {
     usePrefs.getState().setPartnerAsCustomer(false);
     router.replace("/partner");
     return;

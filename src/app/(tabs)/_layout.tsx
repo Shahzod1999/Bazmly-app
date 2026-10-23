@@ -4,7 +4,7 @@ import { Tabs } from "expo-router/js-tabs";
 import { useTranslation } from "react-i18next";
 import { Home, Ticket, ReceiptText, UserRound } from "lucide-react-native";
 import { AppTabBar } from "../../components/TabBar";
-import { useAuth, isPartnerRole } from "../../stores/auth";
+import { useIsPartner } from "../../stores/auth";
 import { usePrefs } from "../../stores/prefs";
 import { useTheme } from "../../theme/ThemeProvider";
 
@@ -12,11 +12,11 @@ export default function CustomerTabsLayout() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
-  const role = useAuth((s) => s.user?.role);
+  const partner = useIsPartner();
   const partnerAsCustomer = usePrefs((s) => s.partnerAsCustomer);
 
   // Hamkor foydalanuvchi o'z paneliga yo'naltiriladi (mijoz rejimini tanlamagan bo'lsa)
-  if (isPartnerRole(role) && !partnerAsCustomer) return <Redirect href="/partner" />;
+  if (partner && !partnerAsCustomer) return <Redirect href="/partner" />;
 
   return (
     <Tabs

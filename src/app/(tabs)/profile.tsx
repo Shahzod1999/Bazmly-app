@@ -32,7 +32,7 @@ import {
   toast,
 } from "../../components/ui";
 import { useTheme } from "../../theme/ThemeProvider";
-import { useAuth, isPartnerRole } from "../../stores/auth";
+import { useAuth, useIsPartner } from "../../stores/auth";
 import { usePrefs } from "../../stores/prefs";
 import { SUPPORTED_LANGUAGES } from "../../i18n";
 import { formatPhone } from "../../lib/format";
@@ -48,6 +48,7 @@ export default function ProfileScreen() {
   const theme = usePrefs((s) => s.theme);
   const setPartnerAsCustomer = usePrefs((s) => s.setPartnerAsCustomer);
   const authed = status === "authed";
+  const partner = useIsPartner();
   const lang = SUPPORTED_LANGUAGES.find((l) => l.code === i18n.language);
   const icon = (I: typeof Bell, danger = false) => (
     <I size={20} color={danger ? colors.danger : colors.text} />
@@ -116,7 +117,7 @@ export default function ProfileScreen() {
         </Card>
       )}
 
-      {authed && isPartnerRole(user?.role) ? (
+      {authed && partner ? (
         <View style={{ marginTop: 16 }}>
           <ListGroup>
             <ListRow
@@ -179,7 +180,7 @@ export default function ProfileScreen() {
             title={t("profile.help")}
             onPress={() => router.push("/profile/help")}
           />
-          {!isPartnerRole(user?.role) ? (
+          {!partner ? (
             <ListRow icon={icon(Store)} title={t("auth.partnerLink")} onPress={go("/partner/register")} />
           ) : null}
         </ListGroup>

@@ -5,6 +5,7 @@ import {
   getAccessToken,
   getRefreshToken,
   onAuthLogout,
+  partnerService,
   userService,
   type PhoneRegister,
   type UserProfileUpdate,
@@ -20,6 +21,14 @@ export type AuthStatus = "booting" | "guest" | "authed";
 interface AuthState {
   status: AuthStatus;
   user: UserRead | null;
+  /**
+   * Foydalanuvchi tarmoq egasimi (`GET /venue/groups/me` → 200).
+   * Backend huquqlarni `users.role` dan emas, `venue_staff` dan o'qiydi: muassasa yaratgan
+   * mijozning roli `customer` bo'lib qoladi, lekin u egasi. Shu sababli panelga kirish shunga qaraydi.
+   */
+  ownsGroup: boolean;
+  /** Egalik holatini backend'dan yangilaydi */
+  checkPartnerAccess: () => Promise<boolean>;
   bootstrap: () => Promise<void>;
   refreshUser: () => Promise<UserRead | null>;
   /**
@@ -44,22 +53,36 @@ interface AuthState {
 export const useAuth = create<AuthState>()((set, get) => ({
   status: "booting",
   user: null,
+  ownsGroup: false,
+
+  async checkPartnerAccess() {
+    try {
+      await partnerService.getMyGroup();
+      set({ ownsGroup: true });
+      return true;
+    } catch (e: any) {
+      // 404 — tarmoq yo'q; boshqa xatoda (internet yo'q) oldingi holat saqlanadi
+      if (e?.status === 404 || e?.status === 403) set({ ownsGroup: false });
+      return get().ownsGroup;
+    }
+  },
 
   async bootstrap() {
     await loadTokens();
     if (!getAccessToken()) {
-      set({ status: "guest", user: null });
+      set({ status: "guest", user: null, ownsGroup: false });
       return;
     }
     // Profil yuklanmasa ham (internet yo'q) tokenni saqlab, guest emas, authed holatda qolamiz —
     // keyingi so'rovlar o'zi qayta urinadi. Faqat 401/403 da sessiya tozalanadi.
     try {
       const user = await userService.getMe();
+      await get().checkPartnerAccess();
       set({ status: "authed", user });
     } catch (e: any) {
       if (e?.status === 401 || e?.status === 403) {
         clearTokens();
-        set({ status: "guest", user: null });
+        set({ status: "guest", user: null, ownsGroup: false });
       } else {
         set({ status: "authed" });
       }
@@ -70,6 +93,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
     if (!getAccessToken()) return null;
     try {
       const user = await userService.getMe();
+      await get().checkPartnerAccess();
       set({ user, status: "authed" });
       return user;
     } catch (e: any) {
@@ -81,6 +105,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
   async loginPhone(phone, password) {
     const tokens = await authService.login({ phone, password: password || null });
     const user = await userService.getMe();
+    await get().checkPartnerAccess();
     set({ user, status: "authed" });
     if (tokens.profile_completed === false || user.status === "pending_profile" || !user.first_name)
       return "needs_profile";
@@ -110,6 +135,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
   async loginStaff(login, password) {
     await authService.loginStaff({ login, password });
     const user = await userService.getMe();
+    await get().checkPartnerAccess();
     set({ user, status: "authed" });
   },
 
@@ -127,18 +153,18 @@ export const useAuth = create<AuthState>()((set, get) => ({
       /* server xatosi bo'lsa ham lokal chiqamiz */
     }
     clearTokens();
-    set({ status: "guest", user: null });
+    set({ status: "guest", user: null, ownsGroup: false });
   },
 
   async deleteAccount() {
     await userService.deleteMe();
     clearTokens();
-    set({ status: "guest", user: null });
+    set({ status: "guest", user: null, ownsGroup: false });
   },
 
   forceGuest() {
     clearTokens();
-    set({ status: "guest", user: null });
+    set({ status: "guest", user: null, ownsGroup: false });
   },
 }));
 
@@ -147,6 +173,15 @@ onAuthLogout(() => useAuth.getState().forceGuest());
 
 export function isPartnerRole(role: UserRole | undefined | null): boolean {
   return !!role && PARTNER_ROLES.includes(role);
+}
+
+/** Hamkor paneli ochilsinmi: hamkor roli yoki tarmoq egaligi (backend `venue_staff` asosida) */
+export function isPartner(state: Pick<AuthState, "user" | "ownsGroup"> = useAuth.getState()): boolean {
+  return isPartnerRole(state.user?.role) || state.ownsGroup;
+}
+
+export function useIsPartner(): boolean {
+  return useAuth((s) => isPartnerRole(s.user?.role) || s.ownsGroup);
 }
 
 export function useIsAuthed() {

@@ -19,11 +19,11 @@ import {
 import { useTheme } from "../../theme/ThemeProvider";
 import { radius } from "../../theme/tokens";
 import { useCreateGroupWithBranch, useDistricts, useRegions } from "../../api/queries";
-import type { VenueTypeSlug } from "../../api";
+import { partnerService, type VenueTypeSlug } from "../../api";
 import { WizardHeader } from "../../features/booking/StepHeader";
 import { OptionCard } from "../../features/booking/OptionCard";
 import { GuestGate } from "../../features/auth/GuestGate";
-import { useAuth, isPartnerRole } from "../../stores/auth";
+import { useAuth, isPartner } from "../../stores/auth";
 import { usePrefs } from "../../stores/prefs";
 import { useBranchStore } from "../../features/partner/usePartnerContext";
 import { getCurrentLocation } from "../../lib/location";
@@ -35,6 +35,9 @@ const TOTAL = 4;
  * Hamkor ro'yxatdan o'tishi: turi → manzil → sig'im/narx → suratlar → POST /venue/groups.
  * Avval foydalanuvchi SMS orqali kirgan bo'lishi shart (akkaunt avtomatik yaratilmaydi).
  */
+const TABLE_SIZES = ["2", "4", "6", "8"] as const;
+type TableSize = (typeof TABLE_SIZES)[number];
+
 export default function PartnerRegister() {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -47,6 +50,10 @@ export default function PartnerRegister() {
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [locating, setLocating] = useState(false);
+  // Qayta urinishda yangi tarmoq yaratilmasligi uchun (backend: bitta egaga bitta tarmoq)
+  const [createdVenueId, setCreatedVenueId] = useState<number | null>(null);
+  const [tablesCreated, setTablesCreated] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [f, setF] = useState({
     type: "toyxona" as VenueTypeSlug,
     groupName: "",
@@ -60,7 +67,8 @@ export default function PartnerRegister() {
     phone: (user?.phone ?? "").replace(/\D/g, "").slice(-9),
     capMin: "",
     capMax: "",
-    seats: "",
+    // Restoran stollari: necha kishilik → nechta (backend TableCountsCreate: {2: 4, 4: 6})
+    tables: { "2": "2", "4": "4", "6": "2", "8": "0" } as Record<TableSize, string>,
     price: "",
     requiresDeposit: true,
     depositPercent: "10",
@@ -94,7 +102,7 @@ export default function PartnerRegister() {
           <Button
             title={t("partnerRegister.toPanel")}
             size="lg"
-            onPress={() => router.replace(isPartnerRole(useAuth.getState().user?.role) ? "/partner" : "/")}
+            onPress={() => router.replace(isPartner() ? "/partner" : "/")}
           />
         }
       >
@@ -114,10 +122,15 @@ export default function PartnerRegister() {
   }
 
   const isHall = f.type === "toyxona";
+  const tableCounts = Object.fromEntries(
+    TABLE_SIZES.map((s) => [s, Number(f.tables[s] || 0)]).filter(([, n]) => Number(n) > 0),
+  ) as Record<string, number>;
+  const restaurantSeats = Object.entries(tableCounts).reduce((sum, [s, n]) => sum + Number(s) * n, 0);
   const canNext =
     (step === 0 && f.groupName.trim().length > 1 && f.venueName.trim().length > 1) ||
     (step === 1 && !!f.districtId && f.street.trim().length > 1 && f.house.trim().length > 0) ||
-    (step === 2 && f.phone.length === 9 && (isHall ? !!f.capMax : !!f.seats)) ||
+    // To'yxonada narx majburiy: backend yagona narx bosqichini base_price dan yaratadi, narxsiz zalni bron qilib bo'lmaydi
+    (step === 2 && f.phone.length === 9 && (isHall ? !!f.capMax && !!f.price : restaurantSeats > 0)) ||
     step === 3;
 
   const locate = async () => {
@@ -143,33 +156,53 @@ export default function PartnerRegister() {
     const lng = f.lng ?? (district ? Number(district.longitude) : null);
     if (!f.districtId || lat === null || lng === null) return;
     const n = (s: string) => (s.trim() ? Number(s.replace(/\D/g, "")) : null);
+    setFinishing(true);
     try {
-      const res = await create.mutateAsync({
-        group: { name: f.groupName.trim(), primary_venue_type: f.type },
-        branch: {
-          name: f.venueName.trim(),
-          venue_type: f.type,
-          district_id: f.districtId,
-          street: f.street.trim(),
-          house_number: f.house.trim(),
-          latitude: lat,
-          longitude: lng,
-          phone: toE164(f.phone),
-          total_seats: isHall ? n(f.capMax) : n(f.seats),
-          capacity_min: isHall ? n(f.capMin) : null,
-          capacity_max: isHall ? n(f.capMax) : n(f.seats),
-          base_price: n(f.price),
-          requires_deposit: f.requiresDeposit,
-          deposit_percent: f.requiresDeposit ? n(f.depositPercent) : null,
-        },
-      });
-      // Suratlarni yuklash API'si hali yo'q (BACKEND_CONTRACT §4) — tanlangan suratlar hozircha yuborilmaydi
-      if (res.branches[0]) useBranchStore.getState().setVenueId(res.branches[0].id);
+      // 1) Tarmoq + birinchi filial (backend egani venue_staff'ga yozadi)
+      let venueId = createdVenueId;
+      if (!venueId) {
+        const res = await create.mutateAsync({
+          group: { name: f.groupName.trim(), primary_venue_type: f.type },
+          branch: {
+            name: f.venueName.trim(),
+            venue_type: f.type,
+            district_id: f.districtId,
+            street: f.street.trim(),
+            house_number: f.house.trim(),
+            latitude: lat,
+            longitude: lng,
+            phone: toE164(f.phone),
+            total_seats: isHall ? n(f.capMax) : restaurantSeats,
+            capacity_min: isHall ? n(f.capMin) : null,
+            capacity_max: isHall ? n(f.capMax) : restaurantSeats,
+            base_price: n(f.price),
+            requires_deposit: f.requiresDeposit,
+            deposit_percent: f.requiresDeposit ? n(f.depositPercent) : null,
+          },
+        });
+        venueId = res.branches[0]?.id ?? null;
+        if (!venueId) throw new Error(t("common.errorGeneric"));
+        setCreatedVenueId(venueId);
+        useBranchStore.getState().setVenueId(venueId);
+      }
+      // 2) Restoran stollari
+      if (!isHall && !tablesCreated) {
+        await partnerService.createTablesBulk(venueId, { counts: tableCounts });
+        setTablesCreated(true);
+      }
+      // 3) Onboarding qadamlari → `finish` muassasani `active` qiladi (qidiruvda ko'rinadi).
+      // Suratlarni yuklash API'si yo'q (BACKEND_CONTRACT §5) — media qadami bo'sh o'tkaziladi.
+      await partnerService.onboardingTablesDone(venueId);
+      await partnerService.onboardingServicesDone(venueId);
+      await partnerService.onboardingMediaDone(venueId);
+      await partnerService.onboardingFinish(venueId);
       usePrefs.getState().setPartnerAsCustomer(false);
       await refreshUser();
       setDone(true);
     } catch (e) {
       toast.error(errorMessage(e, t("common.errorGeneric")));
+    } finally {
+      setFinishing(false);
     }
   };
 
@@ -181,7 +214,7 @@ export default function PartnerRegister() {
         step < TOTAL - 1 ? (
           <Button title={t("common.next")} size="lg" disabled={!canNext} onPress={() => setStep(step + 1)} />
         ) : (
-          <Button title={t("partnerRegister.submit")} size="lg" loading={create.isPending} onPress={submit} />
+          <Button title={t("partnerRegister.submit")} size="lg" loading={finishing} onPress={submit} />
         )
       }
     >
@@ -308,12 +341,32 @@ export default function PartnerRegister() {
               />
             </View>
           ) : (
-            <Input
-              label={t("venue.capacity")}
-              value={f.seats}
-              onChangeText={(v) => set("seats", v.replace(/\D/g, ""))}
-              keyboardType="number-pad"
-            />
+            <View style={{ gap: 10 }}>
+              <Text variant="smallMedium" color="textMuted">
+                {t("partnerRegister.tablesTitle")}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                {TABLE_SIZES.map((size) => (
+                  <Input
+                    key={size}
+                    containerStyle={{ flex: 1 }}
+                    label={t("partnerRegister.tableSize", { count: Number(size) })}
+                    value={f.tables[size]}
+                    onChangeText={(v) =>
+                      set("tables", { ...f.tables, [size]: v.replace(/\D/g, "").slice(0, 3) })
+                    }
+                    keyboardType="number-pad"
+                    accessibilityLabel={t("partnerRegister.tableSizeA11y", { count: Number(size) })}
+                  />
+                ))}
+              </View>
+              <Text variant="small" color="textMuted">
+                {t("partnerRegister.tablesTotal", {
+                  tables: Object.values(tableCounts).reduce((a, b) => a + b, 0),
+                  seats: restaurantSeats,
+                })}
+              </Text>
+            </View>
           )}
           <Input
             label={t("partner.basePrice")}
