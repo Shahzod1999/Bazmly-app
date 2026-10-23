@@ -11,10 +11,14 @@ import { formatDistance, formatMoney } from "../../lib/format";
 import { haptic } from "../../lib/haptics";
 import { venueImage } from "./images";
 
-type VenueLike = VenueListItem & { venue_type?: string | null };
+/** "Bunyodkor shoh ko'chasi, 12" — backend bermasa null */
+function addressOf(v: VenueListItem): string | null {
+  const parts = [v.street, v.house_number].filter((x) => x && String(x).trim());
+  return parts.length ? parts.join(", ") : null;
+}
 
 interface Props {
-  venue: VenueLike;
+  venue: VenueListItem;
   onPress: () => void;
   variant?: "large" | "grid" | "row";
   favorite?: boolean;
@@ -26,6 +30,11 @@ export function VenueCard({ venue, onPress, variant = "grid", favorite, onToggle
   const { colors } = useTheme();
   const distance = formatDistance(venue.distance_m);
   const img = venueImage(venue.id, venue.cover_url, venue.venue_type);
+  const address = addressOf(venue);
+  const capacity =
+    venue.capacity_min && venue.capacity_max
+      ? t("venue.capacityRange", { min: venue.capacity_min, max: venue.capacity_max })
+      : null;
   const discount =
     venue.discount_percent && Number(venue.discount_percent) > 0 ? Number(venue.discount_percent) : null;
 
@@ -57,6 +66,11 @@ export function VenueCard({ venue, onPress, variant = "grid", favorite, onToggle
               rating={venue.rating_avg}
               count={t("home.reviews", { count: venue.reviews_count })}
             />
+            {address ? (
+              <Text variant="small" color="textMuted" numberOfLines={1}>
+                {address}
+              </Text>
+            ) : null}
             <View style={styles.metaRow}>
               <StatusDot
                 open={venue.is_open_now}
@@ -104,6 +118,14 @@ export function VenueCard({ venue, onPress, variant = "grid", favorite, onToggle
               <Text variant="small" color="textMuted" numberOfLines={1}>
                 {venue.tagline}
               </Text>
+            ) : null}
+            {address || capacity ? (
+              <View style={styles.inline}>
+                {address ? <MapPin size={14} color={colors.textMuted} /> : null}
+                <Text variant="small" color="textMuted" numberOfLines={1} style={{ flexShrink: 1 }}>
+                  {[address, capacity].filter(Boolean).join(" · ")}
+                </Text>
+              </View>
             ) : null}
             <View style={styles.metaRow}>
               <StatusDot

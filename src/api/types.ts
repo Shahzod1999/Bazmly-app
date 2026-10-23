@@ -386,6 +386,8 @@ export interface VenueDetailRead {
   venue_type: VenueTypeSlug;
   working_hours: VenueWorkingHoursRead[];
   is_open_now: boolean;
+  /** To'yxona mehmonlar soni bo'yicha narx bosqichlari. Tuzilishi backend'dan aniqlashtirilmoqda (BACKEND_CONTRACT §7) */
+  guest_tiers?: unknown[];
 }
 
 export interface VenueListItem {
@@ -402,6 +404,12 @@ export interface VenueListItem {
   distance_m: number | null;
   is_open_now: boolean;
   cover_url?: string | null;
+  // Real backend (2026-10) qaytaradi — kartada manzil va sig'imni qo'shimcha so'rovsiz ko'rsatish uchun
+  venue_type?: VenueTypeSlug;
+  street?: string | null;
+  house_number?: string | null;
+  capacity_min?: number | null;
+  capacity_max?: number | null;
 }
 
 export interface BranchListItem {

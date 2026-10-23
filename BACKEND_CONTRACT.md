@@ -217,7 +217,34 @@ Bron yaratishda `promo_code?: string` maydoni: `HallEventCreate` va `TableReserv
 
 ---
 
-## §6. Akkauntni o'chirish
+## §6. Kichik takliflar (mavjud endpointlarga)
+
+| Joy | Muammo | Taklif |
+|---|---|---|
+| `GET /venues/search` → `sort` | Qabul qilinadigan qiymatlar hujjatlashtirilmagan. Shuning uchun ilova natijalarni hozircha o'zi saralaydi, bu esa faqat yuklangan sahifaga ishlaydi. | `sort` uchun `recommended` \| `rating` \| `price_asc` \| `distance` qiymatlarini qo'llab-quvvatlash (distance — `latitude`/`longitude` berilganda) |
+| `GET /venues/search` → elementlar | Koordinata yo'q. Xarita rejimida ilova har bir venue uchun alohida `GET /venues/{id}` so'raydi (30 tagacha so'rov). | `latitude`, `longitude` (string, `VenueRead` dagi kabi) qo'shish |
+| `POST /bookings/hall` | To'yxonada "Tayyor dasturxon" yoki "O'zimiz tayyorlaymiz" tanlovi uchun maydon yo'q. Hozir u `note` ichiga matn sifatida yoziladi. | `service_mode: "ready" \| "own"` maydoni |
+
+---
+
+## §7. Real backend tekshiruvi natijalari (2026-10-23)
+
+Ochiq endpointlar `npm run smoke` sxemalari bilan solishtirildi:
+
+| Endpoint | Natija |
+|---|---|
+| `/regions`, `/regions/{id}/districts`, `/districts/nearest`, `/amenities`, `/service-catalog`, `/venues/{id}/zones`, `/venues/{id}/reviews`, `/reviews/venue/{id}/aggregate`, `/venues/{id}/availability` | ✓ tiplar mos |
+| `/venues/search` | ⚠ yangi maydonlar: `venue_type`, `street`, `house_number`, `capacity_min`, `capacity_max`. Ilova tiplariga qo'shildi, kartalarda manzil va sig'im ko'rsatiladi |
+| `/venues/{id}` | ⚠ yangi maydon `guest_tiers`. Bu to'yxonaning mehmonlar soni bo'yicha narx bosqichlari bo'lsa kerak (`BookingRead.guest_tier_id` bilan bog'liq). **Element tuzilishini yuboring** (`id`, `min_guests`, `max_guests`, `price`?) va `HallEventCreate` da `guest_tier_id` kerakmi, shuni ayting. Shunda bron oqimiga tanlov qo'shiladi |
+| `/languages` | ✗ **4xx xato.** Ilova bu ro'yxatdan til kodini `language_id` ga aylantiradi. Endpoint ishlamasa, til almashtirilganda profil yangilanmaydi (ilova ishlashda davom etadi). Ochiq (`skipAuth`) bo'lishi kerak |
+| `/venues/1/tables?...` | 1-venue (96 o'rinli restoran) uchun bo'sh stollar ro'yxati har doim bo'sh: `19:00` va `19:00:00` formatlarida ham. Stollar kiritilmaganmi yoki filtr xatomi — tekshiring. Stol bo'lmasa mijoz restoranni bron qila olmaydi |
+| `/docs`, `/openapi.json` | Yopiq. Test (staging) muhitida ochib qo'yilsa, `types.ts` ni OpenAPI'dan avtomatik generatsiya qilish mumkin bo'ladi va bunday nomuvofiqliklar o'z-o'zidan yo'qoladi |
+
+Token talab qiladigan endpointlar test akkaunti bilan `npm run smoke` orqali tekshiriladi (README → "Backend smoke test").
+
+---
+
+## §8. Akkauntni o'chirish
 
 `DELETE /users/me` mavjud. App Store talabi bo'yicha u:
 - refresh tokenlarni va qurilmalarni bekor qilishi;

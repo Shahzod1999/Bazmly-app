@@ -42,7 +42,7 @@ export function useVenueList(debouncedQuery: string) {
   // Saralash: backend `sort` qiymatlari hujjatlashtirilmagan (BACKEND_CONTRACT §6) —
   // hozircha yuklangan natijalar mijoz tomonida saralanadi.
   const items = useMemo(() => {
-    const all: (VenueListItem & { venue_type?: string | null })[] = (query.data?.pages ?? []).flatMap(
+    const all: VenueListItem[] = (query.data?.pages ?? []).flatMap(
       (p) => p.items,
     );
     const unique = Array.from(new Map(all.map((v) => [v.id, v])).values());
