@@ -14,7 +14,7 @@ interface PrefsState {
   pushAsked: boolean;
   /** Hamkor foydalanuvchi mijoz rejimiga o'tgan bo'lsa */
   partnerAsCustomer: boolean;
-  /** Sharh qoldirilgan bronlar. Backend'da "mening sharhlarim" endpointi yo'q (BACKEND_CONTRACT §9) */
+  /** Sharh qoldirilgan bronlar. Backend'da "mening sharhlarim" endpointi yo'q (BACKEND_CONTRACT → qolgan masalalar §7) */
   reviewedBookings: number[];
   setTheme: (t: ThemePref) => void;
   setLanguage: (l: AppLanguage) => void;

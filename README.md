@@ -36,6 +36,7 @@ Production'ga tegmasdan to'liq sinash uchun backend'ni lokal ishga tushiring (Po
 
 ```bash
 git clone https://github.com/Patriotic20/bazmly-backend && cd bazmly-backend
+git am ../bazmly-app/backend-patches/0001-*.patch   # backend'ga hali qo'shilmagan bo'lsa (xodim paneli, chat, push)
 cp .env.template .env        # CORS ga http://localhost:8081 ni qo'shing
 uv sync && uv run alembic upgrade head
 uv run python -m scripts.seed_demo     # demo: 10 venue, mijozlar, egalar, xodimlar, bronlar
@@ -50,7 +51,7 @@ Demo akkauntlar (parol hammasida `demo1234`):
 |---|---|
 | Mijoz | `+998 90 000 01 01` … `01 06` |
 | Muassasa egasi | `+998 90 000 00 11` (Bahor), `…00 14` (Sayqal va 3 ta to'yxona) |
-| Xodim | login `bzmana201`, `bzwait202`, … ("Xodim sifatida kirish") |
+| Xodim | telefon `+998 90 000 02 01` (menejer), `…02 02` (ofitsiant), `…02 03` (oshpaz) — Bahor Chilonzor; yoki login `bzmana201`, `bzwait202`, … ("Xodim sifatida kirish") |
 | Admin | `+998 90 000 00 01` |
 
 ```bash

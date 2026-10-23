@@ -135,8 +135,7 @@ export interface BookingServiceRead {
   name_snapshot: string;
 }
 
-export type BookingStatus =
-  "pending" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show" | "expired";
+export type BookingStatus = "pending" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show" | "expired";
 
 /**
  * Konstruktorning 3-bosqichi: taomni qaysi filiallar va qanday narxda taqdim etadi.
@@ -174,7 +173,9 @@ export interface ConversationCreate {
 export interface ConversationListItem {
   id: number;
   venue_id: number;
+  venue_name?: string;
   user_id: number;
+  user_name?: string;
   booking_id?: number | null;
   last_message_at?: string | null;
   last_message?: MessageRead | null;
@@ -790,6 +791,23 @@ export interface StaffRoleRead {
 }
 
 export type StaffRoleScope = "group" | "venue";
+
+/**
+ * One place the caller works: a branch, or a whole chain for a group-scoped
+ * role (owner, admin), in which case `venue_id` is null and every branch of the
+ * chain is theirs.
+ *
+ * `permissions` lets the app show only the sections the role can act on — a
+ * waiter gets check-in and tables, not the menu builder.
+ */
+export interface StaffWorkplaceRead {
+  venue_group_id: number;
+  group_name: string;
+  venue_id?: number | null;
+  venue_name?: string | null;
+  role: StaffRoleRead;
+  permissions: string[];
+}
 
 export interface StatsTotalsRead {
   bookings_count: number;

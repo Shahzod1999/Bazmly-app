@@ -1,0 +1,2049 @@
+From cc8a39ad37f7b1dcb5efb5a9111074db46241b3c Mon Sep 17 00:00:00 2001
+From: Shahzod <shahzodboltayev199@gmail.com>
+Date: Sat, 24 Oct 2026 00:01:50 +0500
+Subject: [PATCH] Tarmoqlar orasidagi ruxsat teshiklari; muassasa chati, xodim
+ ish joyi, Expo push
+
+Xavfsizlik (production'da ham ochiq):
+- has_permission: tarmoq darajasidagi yozuv (venue_id IS NULL) filial qaysi
+  tarmoqqa tegishli ekanini tekshirmasdi. Har qanday tarmoq egasi (hamkor bo'lib
+  ro'yxatdan o'tish hammaga ochiq) boshqa tarmoq filialida bronlarni tasdiqlash,
+  bekor qilish, menyu va filialni o'zgartirish huquqidan o'tardi.
+- /venue/* o'qish endpointlari umuman tekshirilmasdi: istalgan foydalanuvchi
+  istalgan filialning kunlik bronlarini (mehmon ismi va telefoni bilan),
+  buyurtmalar, cheklar, menyu, stollar va filiallar ro'yxatini o'qiy olardi.
+  Endi VenueMember / GroupMember (shu filialda yoki tarmoqda ishlash) talab qilinadi.
+- Chek: order_id filialga tegishli ekanligi tekshiriladi (get va reprint).
+- Chat: GET /conversations/{id}/messages va /read suhbat egasini tekshirmasdi.
+- Bildirishnomani o'qilgan deb belgilash egasiga cheklandi.
+- Noto'g'ri ID (/groups/undefined/...) 500 emas, 422 qaytaradi.
+
+Yangi:
+- GET /venue/staff/me/workplaces: xodim qayerda ishlashi, roli va huquqlari
+  (/venue/groups/me faqat egaga ishlardi, xodim panelini ochib bo'lmasdi).
+- /venue/conversations (ro'yxat, tarix, javob, o'qildi): muassasa mijozga javob
+  bera oladi. ConversationListItem ga venue_name va user_name qo'shildi.
+- ExpoPushSender (APP_CONFIG__PUSH__PROVIDER=expo), push'da data (type + id).
+- Bildirishnomalar: bron yaratilganda mijozga "so'rov yuborildi" (avval pending
+  bronga "Bron tasdiqlandi" ketardi) va xodimlarga "Yangi bron so'rovi";
+  tasdiqlash/rad etishda mijozga xabar; chat xabarlari uchun push.
+- Bron javobida venue_name endi to'ldiriladi (avval "" edi).
+
+Testlar: contract testiga "har bir hamkor o'qish endpointi himoyalangan"
+tekshiruvi; test_tenant_scope.py (tuzatishsiz yiqiladi), test_push_transport.py.
+236 passed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01R1rAydozxEQgFQUf5v3cxR
+---
+ app/core/config.py                            |  16 ++
+ app/core/dependencies.py                      |  70 ++++-
+ app/core/transports.py                        |  87 +++++-
+ app/main.py                                   |   3 +
+ app/modules/bookings/api/dependencies.py      |  95 ++++---
+ app/modules/bookings/api/v1/customer.py       |   6 +-
+ app/modules/bookings/api/v1/venue.py          |  24 +-
+ .../bookings/services/booking_service.py      |   7 +-
+ app/modules/engagement/api/router.py          |   2 +
+ app/modules/engagement/api/v1/router.py       |  29 +-
+ app/modules/engagement/api/v1/venue.py        | 111 ++++++++
+ .../repositories/notification_repository.py   |  11 +-
+ .../engagement/schemas/conversation.py        |   2 +
+ .../services/conversation_service.py          | 102 +++++--
+ app/modules/engagement/services/delivery.py   |  92 +++++++
+ .../services/notification_service.py          |  10 +-
+ app/modules/menu/api/v1/router.py             |   8 +-
+ app/modules/orders/api/v1/router.py           |  17 +-
+ .../orders/services/receipt_service.py        |  13 +-
+ app/modules/staff/api/v1/router.py            |  17 ++
+ .../repositories/venue_staff_repository.py    |  65 ++++-
+ app/modules/staff/schemas/__init__.py         |   2 +
+ app/modules/staff/schemas/venue_staff.py      |  18 ++
+ app/modules/staff/services/staff_service.py   |  68 +++++
+ app/modules/venue_groups/api/v1/router.py     |   4 +-
+ app/modules/venues/api/v1/venue.py            |  17 +-
+ tests/api/test_contract.py                    |  50 +++-
+ tests/api/test_tenant_scope.py                | 255 ++++++++++++++++++
+ tests/repositories/factories.py               |  24 ++
+ tests/test_push_transport.py                  |  46 ++++
+ 30 files changed, 1160 insertions(+), 111 deletions(-)
+ create mode 100644 app/modules/engagement/api/v1/venue.py
+ create mode 100644 app/modules/engagement/services/delivery.py
+ create mode 100644 tests/api/test_tenant_scope.py
+ create mode 100644 tests/test_push_transport.py
+
+diff --git a/app/core/config.py b/app/core/config.py
+index 24a4d1e..d67a405 100644
+--- a/app/core/config.py
++++ b/app/core/config.py
+@@ -116,6 +116,21 @@ class RedisConfig(BaseModel):
+     url: str = "redis://localhost:6379/0"
+ 
+ 
++class PushProvider(StrEnum):
++    LOG = "log"
++    EXPO = "expo"
++
++
++class PushConfig(BaseModel):
++    """`log` writes pushes to the log and sends nothing — the default, so a local
++    run or a test never reaches a real phone. Production sets `expo`."""
++
++    provider: PushProvider = PushProvider.LOG
++    expo_url: str = "https://exp.host/--/api/v2/push/send"
++    # Optional: set when "Enhanced push security" is on in the Expo project.
++    expo_access_token: str | None = None
++
++
+ class LoggingConfig(BaseModel):
+     level: str = "INFO"
+     format: str = "%(asctime)s | %(levelname)-8s | %(name)s | %(request_id)s | %(message)s"
+@@ -144,6 +159,7 @@ class Settings(BaseSettings):
+     security: SecurityConfig = SecurityConfig()
+     telegram: TelegramConfig = TelegramConfig()
+     redis: RedisConfig = RedisConfig()
++    push: PushConfig = PushConfig()
+ 
+ 
+ settings = Settings()
+diff --git a/app/core/dependencies.py b/app/core/dependencies.py
+index f0b7e9a..2421e94 100644
+--- a/app/core/dependencies.py
++++ b/app/core/dependencies.py
+@@ -282,7 +282,9 @@ class PermissionRequired:
+                 "Bu amal uchun `venue_id` talab qilinadi",
+                 details={"permission": self.slug},
+             )
+-        await StaffService(session).require_permission_in_transaction(user.id, int(raw), self.slug)
++        await StaffService(session).require_permission_in_transaction(
++            user.id, _as_id(raw, "venue_id"), self.slug
++        )
+         return user
+ 
+     async def _reconcile_with_body(
+@@ -342,11 +344,75 @@ class GroupPermissionRequired:
+                 details={"permission": self.slug},
+             )
+         await StaffService(session).require_group_permission_in_transaction(
+-            user.id, int(raw), self.slug
++            user.id, _as_id(raw, "group_id"), self.slug
+         )
+         return user
+ 
+ 
++def _as_id(raw: object, name: str) -> int:
++    """A path or query id, read before FastAPI has validated it — so a malformed
++    one (`/groups/undefined/...`) is a 422, never a 500."""
++    try:
++        value = int(str(raw))
++    except ValueError:
++        raise ValidationFailedError(f"`{name}` butun son bo'lishi kerak") from None
++    if value < 1:
++        raise ValidationFailedError(f"`{name}` musbat bo'lishi kerak")
++    return value
++
++
++class VenueMemberRequired:
++    """Guards a partner *read*: the caller must work at the branch it names.
++
++    The writes carry a permission slug each; the reads used to carry nothing, so
++    any signed-in user could list another venue's bookings — guest names and
++    phone numbers included — by putting its id in the URL. Membership is the
++    right bar for a read: a waiter sees the day's bookings without holding
++    `bookings.confirm`.
++
++    `venue_id` comes from the path when the route is nested under a branch, and
++    from the query otherwise — the same rule as `PermissionRequired`.
++    """
++
++    async def __call__(
++        self,
++        request: Request,
++        session: SessionDep,
++        user: CurrentUser,
++        venue_id_query: Annotated[int | None, Query(alias="venue_id")] = None,
++    ) -> UserRead:
++        if auth_disabled():
++            return user
++        raw = request.path_params.get("venue_id", venue_id_query)
++        if raw is None:
++            raise ValidationFailedError("Bu so'rov uchun `venue_id` talab qilinadi")
++        await StaffService(session).require_membership(user.id, _as_id(raw, "venue_id"))
++        return user
++
++
++class GroupMemberRequired:
++    """`VenueMemberRequired` for a chain: `group_id` from the path or the query."""
++
++    async def __call__(
++        self,
++        request: Request,
++        session: SessionDep,
++        user: CurrentUser,
++        group_id_query: Annotated[int | None, Query(alias="group_id")] = None,
++    ) -> UserRead:
++        if auth_disabled():
++            return user
++        raw = request.path_params.get("group_id", group_id_query)
++        if raw is None:
++            raise ValidationFailedError("Bu so'rov uchun `group_id` talab qilinadi")
++        await StaffService(session).require_group_membership(user.id, _as_id(raw, "group_id"))
++        return user
++
++
++VenueMember = Annotated[UserRead, Depends(VenueMemberRequired())]
++GroupMember = Annotated[UserRead, Depends(GroupMemberRequired())]
++
++
+ def require_permission(slug: str, *, venue_in_body: bool = False) -> params.Depends:
+     """`Depends` around `PermissionRequired`, usable two ways.
+ 
+diff --git a/app/core/transports.py b/app/core/transports.py
+index eaef186..6dceab1 100644
+--- a/app/core/transports.py
++++ b/app/core/transports.py
+@@ -8,18 +8,88 @@ a booking that the database already accepted.
+ """
+ 
+ import logging
+-from typing import Protocol
++from typing import Any, Protocol
++
++import httpx
+ 
+ logger = logging.getLogger("app.transport")
+ 
+ 
+ class PushSender(Protocol):
+-    async def send(self, tokens: list[str], title: str, body: str) -> None: ...
++    async def send(
++        self, tokens: list[str], title: str, body: str, data: dict[str, Any] | None = None
++    ) -> None: ...
+ 
+ 
+ class LoggingPushSender:
+-    async def send(self, tokens: list[str], title: str, body: str) -> None:
+-        logger.info("Push queued to %d device(s): %s", len(tokens), title)
++    async def send(
++        self, tokens: list[str], title: str, body: str, data: dict[str, Any] | None = None
++    ) -> None:
++        logger.info("Push queued to %d device(s): %s %s", len(tokens), title, data or {})
++
++
++class ExpoPushSender:
++    """Expo push service — the mobile app registers `ExponentPushToken[...]` tokens.
++
++    `data` travels with the push so a tap opens the right screen: `type` plus the
++    id it needs (`booking_id`, `conversation_id`). Tokens of any other shape are
++    skipped rather than sent to a service that would reject the whole batch.
++    """
++
++    BATCH = 100  # Expo accepts up to 100 messages per request.
++
++    def __init__(
++        self,
++        url: str,
++        access_token: str | None = None,
++        timeout: float = 10.0,
++        transport: httpx.AsyncBaseTransport | None = None,
++    ) -> None:
++        self.url = url
++        self.transport = transport
++        self.headers = {"Accept": "application/json", "Content-Type": "application/json"}
++        if access_token:
++            self.headers["Authorization"] = f"Bearer {access_token}"
++        self.timeout = timeout
++
++    @staticmethod
++    def is_expo_token(token: str) -> bool:
++        return token.startswith(("ExponentPushToken[", "ExpoPushToken["))
++
++    async def send(
++        self, tokens: list[str], title: str, body: str, data: dict[str, Any] | None = None
++    ) -> None:
++        messages = [
++            {
++                "to": token,
++                "title": title,
++                "body": body,
++                "data": data or {},
++                "sound": "default",
++                "channelId": "bookings",
++            }
++            for token in dict.fromkeys(tokens)
++            if self.is_expo_token(token)
++        ]
++        if not messages:
++            return
++        async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport) as client:
++            for start in range(0, len(messages), self.BATCH):
++                batch = messages[start : start + self.BATCH]
++                try:
++                    response = await client.post(self.url, json=batch, headers=self.headers)
++                    response.raise_for_status()
++                    tickets = response.json().get("data", [])
++                except httpx.HTTPError, ValueError:
++                    logger.warning("Expo push batch failed", exc_info=True)
++                    continue
++                for message, ticket in zip(batch, tickets, strict=False):
++                    if isinstance(ticket, dict) and ticket.get("status") == "error":
++                        logger.info(
++                            "Expo push rejected for %s: %s",
++                            message["to"][:24],
++                            ticket.get("details") or ticket.get("message"),
++                        )
+ 
+ 
+ _push_sender: PushSender = LoggingPushSender()
+@@ -32,3 +102,12 @@ def get_push_sender() -> PushSender:
+ def set_push_sender(sender: PushSender) -> None:
+     global _push_sender
+     _push_sender = sender
++
++
++def configure_push_sender() -> None:
++    """Called once at startup: picks the provider from settings."""
++    from app.core.config import PushProvider, settings
++
++    if settings.push.provider == PushProvider.EXPO:
++        set_push_sender(ExpoPushSender(settings.push.expo_url, settings.push.expo_access_token))
++        logger.info("Push provider: Expo")
+diff --git a/app/main.py b/app/main.py
+index ce2b9ce..339a0e1 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -14,6 +14,7 @@ from app.core.middleware.request_id import RequestIDMiddleware
+ from app.core.openapi import mount_audience_docs
+ from app.core.redis import close_redis
+ from app.core.router import main_router
++from app.core.transports import configure_push_sender
+ 
+ 
+ @asynccontextmanager
+@@ -23,6 +24,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+     # First, because it is the guard whose failure matters most: an API that has
+     # shipped with authentication off must not reach the point of opening a port.
+     validate_auth_settings()
++    configure_push_sender()
+ 
+     yield
+ 
+@@ -67,6 +69,7 @@ app = FastAPI(
+         {"name": "venue:services", "description": "Xizmatlarga narx belgilash."},
+         {"name": "bookings", "description": "Mijoz bronlari — Joylar bo'limi."},
+         {"name": "venue:bookings", "description": "Kutilayotgan mijozlar — kunlik navbat."},
++        {"name": "venue:engagement", "description": "Mijozlar bilan suhbatlar — filial tomoni."},
+         {"name": "venue:orders", "description": "Buyurtmalar — stollardagi ochiq cheklar."},
+         {"name": "reviews", "description": "Sharhlar va reyting."},
+         {"name": "engagement", "description": "Sevimlilar, suhbatlar va Xabarlar."},
+diff --git a/app/modules/bookings/api/dependencies.py b/app/modules/bookings/api/dependencies.py
+index 5ae1866..a655d19 100644
+--- a/app/modules/bookings/api/dependencies.py
++++ b/app/modules/bookings/api/dependencies.py
+@@ -1,13 +1,14 @@
+-"""Booking dependencies, plus the seam that queues the confirmation notification.
++"""Booking dependencies, plus the seams that queue booking notifications.
+ 
+-The notification is queued rather than written inline. A booking that the database
++Notifications are queued rather than written inline. A booking that the database
+ has already accepted must not be rolled back because delivery failed, and the
+-customer is waiting on the response — so this runs after the response is on the
+-wire.
++caller is waiting on the response — so they run after the response is on the wire
++(`app.modules.engagement.services.delivery`).
+ 
+-This used to send an SMS through Eskiz. With the SMS layer gone the same seam now
+-writes the in-app notification and fires the push, so a confirmed booking still
+-tells the customer something.
++Who hears what:
++- a new request: the guest ("so'rov yuborildi" — it is `pending`, not confirmed)
++  and the branch's staff who can confirm it;
++- the branch's decision: the guest, "tasdiqlandi" or "rad etildi".
+ """
+ 
+ import logging
+@@ -16,7 +17,7 @@ from typing import Annotated
+ from fastapi import BackgroundTasks, Depends
+ 
+ from app.core.dependencies import SessionDep
+-from app.modules.bookings.schemas import BookingOwnerDetail
++from app.modules.bookings.schemas import BookingOwnerDetail, BookingRead
+ from app.modules.bookings.services import AvailabilityService, BookingService
+ 
+ logger = logging.getLogger("app.bookings")
+@@ -34,43 +35,63 @@ BookingServiceDep = Annotated[BookingService, Depends(get_booking_service)]
+ AvailabilityServiceDep = Annotated[AvailabilityService, Depends(get_availability_service)]
+ 
+ 
+-def queue_booking_confirmation(background: BackgroundTasks, detail: BookingOwnerDetail) -> None:
+-    """Schedule the confirmation notification for after the response."""
++def _when(booking: BookingRead) -> str:
++    return f"{booking.booking_date.strftime('%d.%m')}, {booking.start_time.strftime('%H:%M')}"
++
++
++def queue_booking_created(background: BackgroundTasks, detail: BookingOwnerDetail) -> None:
++    from app.modules.engagement.services.delivery import deliver, deliver_to_venue_staff
++
++    booking = detail.booking
++    data = {"booking_id": booking.id, "venue_id": booking.venue_id}
+     background.add_task(
+-        _send_booking_confirmation,
+-        user_id=detail.booking.user_id,
+-        venue=detail.venue_name,
+-        date=detail.booking.booking_date.strftime("%d.%m"),
+-        time=detail.booking.start_time.strftime("%H:%M"),
++        deliver,
++        [booking.user_id],
++        "booking_requested",
++        "Bron so'rovi yuborildi",
++        f"{detail.venue_name} — {_when(booking)}. Muassasa tasdiqlashi bilan xabar beramiz.",
++        data,
++    )
++    background.add_task(
++        deliver_to_venue_staff,
++        booking.venue_id,
++        "bookings.confirm",
++        "new_booking",
++        "Yangi bron so'rovi",
++        f"{_when(booking)}, {booking.guests_count} kishi",
++        data,
++        skip_user_id=booking.user_id,
+     )
+ 
+ 
+-async def _send_booking_confirmation(*, user_id: int, venue: str, date: str, time: str) -> None:
+-    """Runs after the response, on its own session.
++def queue_booking_decision(
++    background: BackgroundTasks, booking: BookingRead, *, confirmed: bool
++) -> None:
++    background.add_task(_send_booking_decision, booking, confirmed)
+ 
+-    The request's session is closed by the time a background task runs, so this opens
+-    a new one. Failures are logged and swallowed: the booking is already committed and
+-    there is nothing left to abort.
+ 
+-    TODO(queue): `BackgroundTasks` runs in the web worker, so a restart loses anything
+-    in flight. Replace with `arq` or Celery before production — recorded in
+-    DECISIONS.md.
+-    """
++async def _send_booking_decision(booking: BookingRead, confirmed: bool) -> None:
+     from app.core.database.db_helper import db_helper
+-    from app.modules.engagement.services import NotificationService
++    from app.modules.engagement.services.delivery import deliver
++    from app.modules.venues.repositories import VenueRepository
+ 
+-    title = "Bron tasdiqlandi"
+-    body = f"{venue} — {date}, {time}"
++    venue_name = ""
+     try:
+         async with db_helper.session_factory() as session:
+-            service = NotificationService(session)
+-            await service.notify_in_transaction(
+-                user_id=user_id,
+-                notification_type="booking_confirmed",
+-                title=title,
+-                body=body,
+-            )
+-            await session.commit()
+-            await service.push_after_commit(user_id, title, body)
++            venue = await VenueRepository(session).get_by_id(booking.venue_id)
++            venue_name = venue.name if venue is not None else ""
+     except Exception:
+-        logger.warning("booking confirmation failed for user_id=%s", user_id, exc_info=True)
++        logger.warning("venue lookup failed for booking_id=%s", booking.id, exc_info=True)
++    if confirmed:
++        kind, title = "booking_confirmed", "Bron tasdiqlandi"
++        body = f"{venue_name} — {_when(booking)}. Chiptangiz ilovada."
++    else:
++        kind, title = "booking_rejected", "Bron rad etildi"
++        body = f"{venue_name} — {_when(booking)}. Boshqa vaqt yoki joyni tanlab ko'ring."
++    await deliver(
++        [booking.user_id],
++        kind,
++        title,
++        body,
++        {"booking_id": booking.id, "venue_id": booking.venue_id},
++    )
+diff --git a/app/modules/bookings/api/v1/customer.py b/app/modules/bookings/api/v1/customer.py
+index 0491c39..7c7eacc 100644
+--- a/app/modules/bookings/api/v1/customer.py
++++ b/app/modules/bookings/api/v1/customer.py
+@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Path, Query, status
+ from app.core.dependencies import CurrentUser
+ from app.modules.bookings.api.dependencies import (
+     BookingServiceDep,
+-    queue_booking_confirmation,
++    queue_booking_created,
+ )
+ from app.modules.bookings.enums import BookingStatus
+ from app.modules.bookings.schemas import (
+@@ -36,7 +36,7 @@ async def create_table_reservation(
+     background: BackgroundTasks,
+ ) -> BookingOwnerDetail:
+     booking = await service.create_table_reservation(user.id, payload)
+-    queue_booking_confirmation(background, booking)
++    queue_booking_created(background, booking)
+     return booking
+ 
+ 
+@@ -55,7 +55,7 @@ async def create_hall_event(
+     background: BackgroundTasks,
+ ) -> BookingOwnerDetail:
+     booking = await service.create_hall_event(user.id, payload)
+-    queue_booking_confirmation(background, booking)
++    queue_booking_created(background, booking)
+     return booking
+ 
+ 
+diff --git a/app/modules/bookings/api/v1/venue.py b/app/modules/bookings/api/v1/venue.py
+index e0b69db..822b1f5 100644
+--- a/app/modules/bookings/api/v1/venue.py
++++ b/app/modules/bookings/api/v1/venue.py
+@@ -4,11 +4,15 @@ from collections.abc import Sequence
+ from datetime import date
+ from typing import Annotated
+ 
+-from fastapi import APIRouter, Path, Query
++from fastapi import APIRouter, BackgroundTasks, Path, Query
+ 
+-from app.core.dependencies import CurrentUser, require_permission
++from app.core.dependencies import VenueMember, require_permission
+ from app.modules.auth.schemas import UserRead
+-from app.modules.bookings.api.dependencies import AvailabilityServiceDep, BookingServiceDep
++from app.modules.bookings.api.dependencies import (
++    AvailabilityServiceDep,
++    BookingServiceDep,
++    queue_booking_decision,
++)
+ from app.modules.bookings.enums import BookingStatus
+ from app.modules.bookings.schemas import (
+     BlockedDatesRead,
+@@ -30,7 +34,7 @@ router = APIRouter(prefix="/v1/venue/bookings", tags=["venue:bookings"])
+     description="Bitta filialning bitta kundagi bronlari.",
+ )
+ async def list_day(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: BookingServiceDep,
+     venue_id: Annotated[int, Query(ge=1)],
+     day: Annotated[date, Query()],
+@@ -54,8 +58,11 @@ async def confirm(
+     service: BookingServiceDep,
+     booking_id: Annotated[int, Path(ge=1)],
+     venue_id: Annotated[int, Query(ge=1)],
++    background: BackgroundTasks,
+ ) -> BookingRead:
+-    return await service.confirm(user.id, venue_id, booking_id)
++    booking = await service.confirm(user.id, venue_id, booking_id)
++    queue_booking_decision(background, booking, confirmed=True)
++    return booking
+ 
+ 
+ @router.post(
+@@ -74,8 +81,11 @@ async def reject(
+     service: BookingServiceDep,
+     booking_id: Annotated[int, Path(ge=1)],
+     venue_id: Annotated[int, Query(ge=1)],
++    background: BackgroundTasks,
+ ) -> BookingRead:
+-    return await service.reject(user.id, venue_id, booking_id, payload)
++    booking = await service.reject(user.id, venue_id, booking_id, payload)
++    queue_booking_decision(background, booking, confirmed=False)
++    return booking
+ 
+ 
+ @router.post(
+@@ -121,7 +131,7 @@ async def check_out(
+     description="Shu filialda to'yxona tadbiri egallagan kunlar.",
+ )
+ async def blocked_dates(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: AvailabilityServiceDep,
+     venue_id: Annotated[int, Query(ge=1)],
+     date_from: Annotated[date, Query()],
+diff --git a/app/modules/bookings/services/booking_service.py b/app/modules/bookings/services/booking_service.py
+index 84d4b57..5b6cfcb 100644
+--- a/app/modules/bookings/services/booking_service.py
++++ b/app/modules/bookings/services/booking_service.py
+@@ -163,7 +163,7 @@ class BookingService:
+             raise translate_integrity_error(error) from error
+ 
+         await get_availability_cache().invalidate(venue_availability_prefix(venue.id))
+-        return await self._detail_in_transaction(created, venue_name=None)
++        return await self._detail_in_transaction(created, venue_name=venue.name)
+ 
+     async def create_hall_event(self, user_id: int, payload: HallEventCreate) -> BookingOwnerDetail:
+         venue = await self._require_venue(payload.venue_id)
+@@ -224,7 +224,7 @@ class BookingService:
+             raise translate_integrity_error(error) from error
+ 
+         await get_availability_cache().invalidate(venue_availability_prefix(venue.id))
+-        return await self._detail_in_transaction(created, venue_name=None)
++        return await self._detail_in_transaction(created, venue_name=venue.name)
+ 
+     async def list_for_user(
+         self, user_id: int, statuses: Sequence[str] | None = None
+@@ -622,6 +622,9 @@ class BookingService:
+     async def _detail_in_transaction(
+         self, booking: Booking, venue_name: str | None
+     ) -> BookingOwnerDetail:
++        if venue_name is None:
++            venue = await self.venues.get_by_id(booking.venue_id)
++            venue_name = venue.name if venue is not None else None
+         items = await self.bookings.list_items(booking.id)
+         services = await self.bookings.list_services(booking.id)
+         lines = await self.bookings.list_price_lines(booking.id)
+diff --git a/app/modules/engagement/api/router.py b/app/modules/engagement/api/router.py
+index 590e292..8d8fc19 100644
+--- a/app/modules/engagement/api/router.py
++++ b/app/modules/engagement/api/router.py
+@@ -1,8 +1,10 @@
+ from fastapi import APIRouter
+ 
+ from app.modules.engagement.api.v1.router import router as v1_router
++from app.modules.engagement.api.v1.venue import router as v1_venue_router
+ from app.modules.engagement.api.v2.router import router as v2_router
+ 
+ router = APIRouter()
+ router.include_router(v1_router)
++router.include_router(v1_venue_router)
+ router.include_router(v2_router)
+diff --git a/app/modules/engagement/api/v1/router.py b/app/modules/engagement/api/v1/router.py
+index bee3ec2..a136566 100644
+--- a/app/modules/engagement/api/v1/router.py
++++ b/app/modules/engagement/api/v1/router.py
+@@ -1,7 +1,7 @@
+ from collections.abc import Sequence
+ from typing import Annotated
+ 
+-from fastapi import APIRouter, Path, status
++from fastapi import APIRouter, BackgroundTasks, Path, status
+ 
+ from app.core.dependencies import CurrentUser, PaginationDep, SessionDep
+ from app.core.pagination import Page
+@@ -23,6 +23,7 @@ from app.modules.engagement.services import (
+     FavoriteService,
+     NotificationService,
+ )
++from app.modules.engagement.services.delivery import deliver_to_venue_staff
+ 
+ router = APIRouter(prefix="/v1", tags=["engagement"])
+ 
+@@ -109,7 +110,7 @@ async def list_messages(
+     conversation_id: Annotated[int, Path(ge=1)],
+ ) -> Sequence[MessageRead]:
+     return await ConversationService(session).history(
+-        conversation_id, pagination.limit, pagination.offset
++        conversation_id, user.id, pagination.limit, pagination.offset
+     )
+ 
+ 
+@@ -126,10 +127,24 @@ async def send_message(
+     user: CurrentUser,
+     session: SessionDep,
+     conversation_id: Annotated[int, Path(ge=1)],
++    background: BackgroundTasks,
+ ) -> MessageRead:
+-    return await ConversationService(session).send(
+-        conversation_id, user.id, MessageSenderType.USER, payload
+-    )
++    service = ConversationService(session)
++    message = await service.send(conversation_id, user.id, MessageSenderType.USER, payload)
++    conversation = await service.conversations.get_by_id(conversation_id)
++    if conversation is not None:
++        background.add_task(
++            deliver_to_venue_staff,
++            conversation.venue_id,
++            "bookings.confirm",
++            "guest_message",
++            f"{user.first_name} {user.last_name}".strip() or "Yangi xabar",
++            payload.body[:140],
++            {"conversation_id": conversation_id, "venue_id": conversation.venue_id},
++            store=False,
++            skip_user_id=user.id,
++        )
++    return message
+ 
+ 
+ @router.post(
+@@ -144,7 +159,7 @@ async def send_message(
+ async def mark_conversation_read(
+     user: CurrentUser, session: SessionDep, conversation_id: Annotated[int, Path(ge=1)]
+ ) -> Sequence[int]:
+-    return await ConversationService(session).mark_read(conversation_id, MessageSenderType.USER)
++    return await ConversationService(session).mark_read(conversation_id, user.id)
+ 
+ 
+ @router.get(
+@@ -183,7 +198,7 @@ async def unread_count(user: CurrentUser, session: SessionDep) -> UnreadCountRea
+ async def mark_notification_read(
+     user: CurrentUser, session: SessionDep, notification_id: Annotated[int, Path(ge=1)]
+ ) -> NotificationRead:
+-    return await NotificationService(session).mark_read(notification_id)
++    return await NotificationService(session).mark_read(notification_id, user.id)
+ 
+ 
+ @router.post(
+diff --git a/app/modules/engagement/api/v1/venue.py b/app/modules/engagement/api/v1/venue.py
+new file mode 100644
+index 0000000..90975db
+--- /dev/null
++++ b/app/modules/engagement/api/v1/venue.py
+@@ -0,0 +1,111 @@
++"""Staff-facing side of "Xabar yozish": the branch reads and answers its guests.
++
++Every route names its branch with `venue_id`. Reads are guarded by membership —
++the caller must work at that branch, or own its chain; replying needs
++`bookings.confirm`, the slug of everyone who deals with guests. A thread is reachable only
++through the branch it was opened with, so a member of one branch cannot read
++another branch's threads by guessing ids.
++"""
++
++from collections.abc import Sequence
++from typing import Annotated
++
++from fastapi import APIRouter, BackgroundTasks, Path, Query, status
++
++from app.core.dependencies import PaginationDep, SessionDep, VenueMember, require_permission
++from app.modules.auth.schemas import UserRead
++from app.modules.engagement.enums import MessageSenderType
++from app.modules.engagement.schemas import ConversationListItem, MessageCreate, MessageRead
++from app.modules.engagement.services import ConversationService
++from app.modules.engagement.services.delivery import deliver
++from app.modules.venues.repositories import VenueRepository
++
++router = APIRouter(prefix="/v1/venue/conversations", tags=["venue:engagement"])
++
++
++@router.get(
++    "",
++    response_model=list[ConversationListItem],
++    operation_id="venue_conversations_list",
++    summary="Mijozlar bilan suhbatlar",
++    description=(
++        "Filialga yozilgan suhbatlar: mijoz ismi, oxirgi xabar va muassasa hali "
++        "o'qimagan xabarlar soni bilan."
++    ),
++)
++async def list_conversations(
++    user: VenueMember,
++    session: SessionDep,
++    venue_id: Annotated[int, Query(ge=1)],
++) -> Sequence[ConversationListItem]:
++    return await ConversationService(session).list_for_venue(venue_id)
++
++
++@router.get(
++    "/{conversation_id}/messages",
++    response_model=list[MessageRead],
++    operation_id="venue_conversations_messages",
++    summary="Suhbat tarixi",
++    description="Eng yangisidan boshlab, sahifalab.",
++)
++async def list_messages(
++    user: VenueMember,
++    session: SessionDep,
++    pagination: PaginationDep,
++    conversation_id: Annotated[int, Path(ge=1)],
++    venue_id: Annotated[int, Query(ge=1)],
++) -> Sequence[MessageRead]:
++    return await ConversationService(session).venue_history(
++        conversation_id, venue_id, pagination.limit, pagination.offset
++    )
++
++
++@router.post(
++    "/{conversation_id}/messages",
++    response_model=MessageRead,
++    status_code=status.HTTP_201_CREATED,
++    operation_id="venue_conversations_send",
++    summary="Mijozga javob yozish",
++    description="Xabar muassasa nomidan yuboriladi (`sender_type=venue`).",
++)
++async def send_message(
++    payload: MessageCreate,
++    user: Annotated[UserRead, require_permission("bookings.confirm")],
++    session: SessionDep,
++    conversation_id: Annotated[int, Path(ge=1)],
++    venue_id: Annotated[int, Query(ge=1)],
++    background: BackgroundTasks,
++) -> MessageRead:
++    service = ConversationService(session)
++    message = await service.send(
++        conversation_id, user.id, MessageSenderType.VENUE, payload, venue_id=venue_id
++    )
++    conversation = await service.conversations.get_by_id(conversation_id)
++    venue = await VenueRepository(session).get_by_id(venue_id)
++    if conversation is not None:
++        background.add_task(
++            deliver,
++            [conversation.user_id],
++            "message",
++            venue.name if venue is not None else "Muassasa",
++            payload.body[:140],
++            {"conversation_id": conversation_id, "venue_id": venue_id},
++            store=False,
++        )
++    return message
++
++
++@router.post(
++    "/{conversation_id}/read",
++    response_model=list[int],
++    operation_id="venue_conversations_mark_read",
++    summary="Mijoz xabarlarini o'qilgan deb belgilash",
++    description="Faqat mijoz yozgan xabarlar belgilanadi.",
++)
++async def mark_read(
++    user: Annotated[UserRead, require_permission("bookings.confirm")],
++    session: SessionDep,
++    conversation_id: Annotated[int, Path(ge=1)],
++    venue_id: Annotated[int, Query(ge=1)],
++) -> Sequence[int]:
++    return await ConversationService(session).venue_mark_read(conversation_id, venue_id)
+diff --git a/app/modules/engagement/repositories/notification_repository.py b/app/modules/engagement/repositories/notification_repository.py
+index 6971014..7f166ba 100644
+--- a/app/modules/engagement/repositories/notification_repository.py
++++ b/app/modules/engagement/repositories/notification_repository.py
+@@ -49,10 +49,17 @@ class NotificationRepository:
+         )
+         return int(result.scalar_one())
+ 
+-    async def mark_read(self, notification_id: int, now: datetime) -> Notification | None:
++    async def mark_read(
++        self, notification_id: int, user_id: int, now: datetime
++    ) -> Notification | None:
++        """Scoped to the owner: another user's id reads as "not found"."""
+         result = await self.session.execute(
+             update(Notification)
+-            .where(Notification.id == notification_id, Notification.read_at.is_(None))
++            .where(
++                Notification.id == notification_id,
++                Notification.user_id == user_id,
++                Notification.read_at.is_(None),
++            )
+             .values(read_at=now)
+             .returning(Notification)
+         )
+diff --git a/app/modules/engagement/schemas/conversation.py b/app/modules/engagement/schemas/conversation.py
+index 8d838dc..d035a6a 100644
+--- a/app/modules/engagement/schemas/conversation.py
++++ b/app/modules/engagement/schemas/conversation.py
+@@ -19,7 +19,9 @@ class ConversationListItem(ReadSchema):
+ 
+     id: int
+     venue_id: int
++    venue_name: str = ""
+     user_id: int
++    user_name: str = ""
+     booking_id: int | None = None
+     last_message_at: datetime | None = None
+     last_message: MessageRead | None = None
+diff --git a/app/modules/engagement/services/conversation_service.py b/app/modules/engagement/services/conversation_service.py
+index 78f75e1..a1b3de8 100644
+--- a/app/modules/engagement/services/conversation_service.py
++++ b/app/modules/engagement/services/conversation_service.py
+@@ -1,10 +1,13 @@
+ from collections.abc import Sequence
+ 
++from sqlalchemy import select
+ from sqlalchemy.ext.asyncio import AsyncSession
+ 
+ from app.core.database.mixins import utcnow_naive
+ from app.core.exceptions import NotFoundError, PermissionDeniedError
++from app.modules.auth.models import User
+ from app.modules.engagement.enums import MessageSenderType
++from app.modules.engagement.models import Conversation
+ from app.modules.engagement.repositories import ConversationRepository, ConversationRow
+ from app.modules.engagement.schemas import (
+     ConversationListItem,
+@@ -12,6 +15,7 @@ from app.modules.engagement.schemas import (
+     MessageCreate,
+     MessageRead,
+ )
++from app.modules.venues.models import Venue
+ 
+ 
+ class ConversationService:
+@@ -35,11 +39,27 @@ class ConversationService:
+ 
+     async def list_for_user(self, user_id: int) -> Sequence[ConversationListItem]:
+         rows = await self.conversations.list_for_user(user_id)
+-        return [self._to_list_item(row) for row in rows]
++        return await self._to_list_items(rows)
+ 
+     async def list_for_venue(self, venue_id: int) -> Sequence[ConversationListItem]:
+         rows = await self.conversations.list_for_venue(venue_id)
+-        return [self._to_list_item(row) for row in rows]
++        return await self._to_list_items(rows)
++
++    async def _owned(self, conversation_id: int, user_id: int) -> Conversation:
++        """A guest's own thread. Anyone else's id reads as "not found", so thread
++        ids cannot be probed."""
++        conversation = await self.conversations.get_by_id(conversation_id)
++        if conversation is None or conversation.user_id != user_id:
++            raise NotFoundError("Suhbat topilmadi")
++        return conversation
++
++    async def _at_venue(self, conversation_id: int, venue_id: int) -> Conversation:
++        """A thread addressed to this branch. The route has already checked that the
++        caller works there."""
++        conversation = await self.conversations.get_by_id(conversation_id)
++        if conversation is None or conversation.venue_id != venue_id:
++            raise NotFoundError("Suhbat topilmadi")
++        return conversation
+ 
+     async def send(
+         self,
+@@ -47,6 +67,7 @@ class ConversationService:
+         sender_user_id: int,
+         sender_type: str,
+         payload: MessageCreate,
++        venue_id: int | None = None,
+     ) -> MessageRead:
+         """Appends and moves `last_message_at` in one flush, so the inbox ordering
+         can never lag behind its own messages."""
+@@ -55,6 +76,8 @@ class ConversationService:
+             raise NotFoundError("Suhbat topilmadi")
+         if sender_type == MessageSenderType.USER and conversation.user_id != sender_user_id:
+             raise PermissionDeniedError("Bu suhbat boshqa foydalanuvchiga tegishli")
++        if sender_type == MessageSenderType.VENUE and conversation.venue_id != venue_id:
++            raise NotFoundError("Suhbat topilmadi")
+ 
+         message = await self.conversations.add_message(
+             conversation_id=conversation_id,
+@@ -67,28 +90,71 @@ class ConversationService:
+         return MessageRead.model_validate(message)
+ 
+     async def history(
+-        self, conversation_id: int, limit: int = 50, offset: int = 0
++        self, conversation_id: int, user_id: int, limit: int = 50, offset: int = 0
++    ) -> Sequence[MessageRead]:
++        await self._owned(conversation_id, user_id)
++        return await self._history(conversation_id, limit, offset)
++
++    async def venue_history(
++        self, conversation_id: int, venue_id: int, limit: int = 50, offset: int = 0
++    ) -> Sequence[MessageRead]:
++        await self._at_venue(conversation_id, venue_id)
++        return await self._history(conversation_id, limit, offset)
++
++    async def _history(
++        self, conversation_id: int, limit: int, offset: int
+     ) -> Sequence[MessageRead]:
+         rows = await self.conversations.list_messages(conversation_id, limit, offset)
+         return [MessageRead.model_validate(row) for row in rows]
+ 
+-    async def mark_read(self, conversation_id: int, reader_type: str) -> Sequence[int]:
++    async def mark_read(self, conversation_id: int, user_id: int) -> Sequence[int]:
+         """Marks the other side's messages only — a sender never marks their own."""
++        await self._owned(conversation_id, user_id)
++        return await self._mark_read(conversation_id, MessageSenderType.USER)
++
++    async def venue_mark_read(self, conversation_id: int, venue_id: int) -> Sequence[int]:
++        await self._at_venue(conversation_id, venue_id)
++        return await self._mark_read(conversation_id, MessageSenderType.VENUE)
++
++    async def _mark_read(self, conversation_id: int, reader_type: str) -> Sequence[int]:
+         ids = await self.conversations.mark_read(conversation_id, reader_type, utcnow_naive())
+         await self.session.commit()
+         return ids
+ 
+-    def _to_list_item(self, row: ConversationRow) -> ConversationListItem:
+-        return ConversationListItem(
+-            id=row.conversation.id,
+-            venue_id=row.conversation.venue_id,
+-            user_id=row.conversation.user_id,
+-            booking_id=row.conversation.booking_id,
+-            last_message_at=row.conversation.last_message_at,
+-            last_message=(
+-                MessageRead.model_validate(row.last_message)
+-                if row.last_message is not None
+-                else None
+-            ),
+-            unread_count=row.unread_count,
+-        )
++    async def _to_list_items(
++        self, rows: Sequence[ConversationRow]
++    ) -> Sequence[ConversationListItem]:
++        """Names for both sides in two lookups, not one per row: the guest's inbox
++        shows the venue, the venue's inbox shows the guest."""
++        venue_ids = {row.conversation.venue_id for row in rows}
++        user_ids = {row.conversation.user_id for row in rows}
++        venues: dict[int, str] = {}
++        users: dict[int, str] = {}
++        if venue_ids:
++            result = await self.session.execute(
++                select(Venue.id, Venue.name).where(Venue.id.in_(venue_ids))
++            )
++            venues = {vid: name for vid, name in result.all()}
++        if user_ids:
++            result = await self.session.execute(
++                select(User.id, User.first_name, User.last_name).where(User.id.in_(user_ids))
++            )
++            users = {uid: f"{first} {last}".strip() for uid, first, last in result.all()}
++        return [
++            ConversationListItem(
++                id=row.conversation.id,
++                venue_id=row.conversation.venue_id,
++                venue_name=venues.get(row.conversation.venue_id, ""),
++                user_id=row.conversation.user_id,
++                user_name=users.get(row.conversation.user_id, ""),
++                booking_id=row.conversation.booking_id,
++                last_message_at=row.conversation.last_message_at,
++                last_message=(
++                    MessageRead.model_validate(row.last_message)
++                    if row.last_message is not None
++                    else None
++                ),
++                unread_count=row.unread_count,
++            )
++            for row in rows
++        ]
+diff --git a/app/modules/engagement/services/delivery.py b/app/modules/engagement/services/delivery.py
+new file mode 100644
+index 0000000..9befc67
+--- /dev/null
++++ b/app/modules/engagement/services/delivery.py
+@@ -0,0 +1,92 @@
++"""Notifications that leave the request: an in-app row plus a push, after commit.
++
++Every event here runs as a background task on its own session, after the response
++is sent. The request's session is closed by then, and a failure — a dead token, a
++provider timeout — must never undo what the request already committed. So each
++recipient is attempted on its own and failures are logged, never raised.
++
++TODO(queue): `BackgroundTasks` runs in the web worker, so a restart loses anything
++in flight. Replace with `arq` or Celery before production — recorded in
++DECISIONS.md.
++"""
++
++import logging
++from collections.abc import Iterable
++from typing import Any
++
++from fastapi import BackgroundTasks
++
++logger = logging.getLogger("app.notifications")
++
++
++async def deliver(
++    user_ids: Iterable[int],
++    notification_type: str,
++    title: str,
++    body: str,
++    data: dict[str, Any] | None = None,
++    *,
++    store: bool = True,
++    skip_user_id: int | None = None,
++) -> None:
++    from app.core.database.db_helper import db_helper
++    from app.modules.engagement.services.notification_service import NotificationService
++
++    payload = {"type": notification_type, **(data or {})}
++    for user_id in dict.fromkeys(user_ids):
++        if user_id == skip_user_id:
++            continue
++        try:
++            async with db_helper.session_factory() as session:
++                service = NotificationService(session)
++                if store:
++                    await service.notify_in_transaction(
++                        user_id=user_id,
++                        notification_type=notification_type,
++                        title=title,
++                        body=body,
++                        payload=payload,
++                    )
++                    await session.commit()
++                await service.push_after_commit(user_id, title, body, payload)
++        except Exception:
++            logger.warning(
++                "%s delivery failed for user_id=%s", notification_type, user_id, exc_info=True
++            )
++
++
++async def deliver_to_venue_staff(
++    venue_id: int,
++    permission_slug: str,
++    notification_type: str,
++    title: str,
++    body: str,
++    data: dict[str, Any] | None = None,
++    *,
++    store: bool = True,
++    skip_user_id: int | None = None,
++) -> None:
++    from app.core.database.db_helper import db_helper
++    from app.modules.staff.repositories import VenueStaffRepository
++
++    try:
++        async with db_helper.session_factory() as session:
++            user_ids = await VenueStaffRepository(session).user_ids_with_permission(
++                venue_id, permission_slug
++            )
++    except Exception:
++        logger.warning("staff lookup failed for venue_id=%s", venue_id, exc_info=True)
++        return
++    await deliver(
++        user_ids,
++        notification_type,
++        title,
++        body,
++        data,
++        store=store,
++        skip_user_id=skip_user_id,
++    )
++
++
++def queue(background: BackgroundTasks, func: Any, *args: Any, **kwargs: Any) -> None:
++    background.add_task(func, *args, **kwargs)
+diff --git a/app/modules/engagement/services/notification_service.py b/app/modules/engagement/services/notification_service.py
+index 31c9ec1..bbf68c5 100644
+--- a/app/modules/engagement/services/notification_service.py
++++ b/app/modules/engagement/services/notification_service.py
+@@ -52,11 +52,13 @@ class NotificationService:
+             )
+         )
+ 
+-    async def push_after_commit(self, user_id: int, title: str, body: str) -> None:
++    async def push_after_commit(
++        self, user_id: int, title: str, body: str, data: dict[str, Any] | None = None
++    ) -> None:
+         """Called after the caller has committed. Failures are swallowed by design."""
+         tokens = await self.devices.list_push_tokens_for_user(user_id)
+         if tokens:
+-            await get_push_sender().send(list(tokens), title, body)
++            await get_push_sender().send(list(tokens), title, body, data)
+ 
+     async def list_for_user(
+         self, user_id: int, limit: int = 20, offset: int = 0
+@@ -72,8 +74,8 @@ class NotificationService:
+     async def unread_count(self, user_id: int) -> UnreadCountRead:
+         return UnreadCountRead(unread=await self.notifications.count_unread(user_id))
+ 
+-    async def mark_read(self, notification_id: int) -> NotificationRead:
+-        updated = await self.notifications.mark_read(notification_id, utcnow_naive())
++    async def mark_read(self, notification_id: int, user_id: int) -> NotificationRead:
++        updated = await self.notifications.mark_read(notification_id, user_id, utcnow_naive())
+         if updated is None:
+             raise NotFoundError("Bildirishnoma topilmadi yoki allaqachon o'qilgan")
+         await self.session.commit()
+diff --git a/app/modules/menu/api/v1/router.py b/app/modules/menu/api/v1/router.py
+index 4431f33..1d549a2 100644
+--- a/app/modules/menu/api/v1/router.py
++++ b/app/modules/menu/api/v1/router.py
+@@ -10,7 +10,7 @@ from typing import Annotated
+ 
+ from fastapi import APIRouter, Body, Path, Query, status
+ 
+-from app.core.dependencies import CurrentUser, require_permission
++from app.core.dependencies import GroupMember, VenueMember, require_permission
+ from app.modules.auth.schemas import UserRead
+ from app.modules.menu.api.dependencies import MenuServiceDep
+ from app.modules.menu.schemas import (
+@@ -34,7 +34,7 @@ router = APIRouter(prefix="/v1/venue/menu", tags=["venue:menu"])
+     description="Har bir kategoriya yonidagi son jonli hisoblanadi, saqlanmaydi.",
+ )
+ async def list_categories(
+-    user: CurrentUser,
++    user: GroupMember,
+     service: MenuServiceDep,
+     group_id: Annotated[int, Query(ge=1)],
+     venue_id: Annotated[int | None, Query(ge=1)] = None,
+@@ -67,7 +67,7 @@ async def create_category(
+     description="Faqat shu filial taqdim etadigan taomlar, amaldagi narxi bilan.",
+ )
+ async def list_items(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: MenuServiceDep,
+     venue_id: Annotated[int, Query(ge=1)],
+     category_id: Annotated[int | None, Query(ge=1)] = None,
+@@ -106,7 +106,7 @@ async def create_item(
+     ),
+ )
+ async def get_item(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: MenuServiceDep,
+     item_id: Annotated[int, Path(ge=1)],
+     venue_id: Annotated[int, Query(ge=1)],
+diff --git a/app/modules/orders/api/v1/router.py b/app/modules/orders/api/v1/router.py
+index 5f5de80..0201e36 100644
+--- a/app/modules/orders/api/v1/router.py
++++ b/app/modules/orders/api/v1/router.py
+@@ -9,7 +9,7 @@ from typing import Annotated
+ 
+ from fastapi import APIRouter, Path, Query, status
+ 
+-from app.core.dependencies import CurrentUser, require_permission
++from app.core.dependencies import VenueMember, require_permission
+ from app.modules.auth.schemas import UserRead
+ from app.modules.orders.api.dependencies import OrderServiceDep, ReceiptServiceDep
+ from app.modules.orders.enums import OrderStatus
+@@ -38,7 +38,7 @@ router = APIRouter(prefix="/v1/venue/orders", tags=["venue:orders"])
+     description="Har bir aktiv stol va uning ochiq cheki. Bo'sh stollar ham qaytariladi.",
+ )
+ async def table_board(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: OrderServiceDep,
+     venue_id: Annotated[int, Query(ge=1)],
+     zone_id: Annotated[int | None, Query(ge=1)] = None,
+@@ -54,7 +54,7 @@ async def table_board(
+     description="Oshpaz uchun taomlar navbati, eng eskisidan, stol raqami bilan.",
+ )
+ async def kitchen_queue(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: OrderServiceDep,
+     venue_id: Annotated[int, Query(ge=1)],
+ ) -> Sequence[KitchenQueueItem]:
+@@ -69,7 +69,7 @@ async def kitchen_queue(
+     description="Bugungi ish kuni uchun Buyurtmalar, status bo'yicha filtrlanadi.",
+ )
+ async def list_orders(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: OrderServiceDep,
+     venue_id: Annotated[int, Query(ge=1)],
+     statuses: Annotated[list[OrderStatus] | None, Query()] = None,
+@@ -102,7 +102,7 @@ async def open_table(
+     description="Taomlar, to'lovlar va o'tgan vaqt — o'tgan vaqt o'qish paytida hisoblanadi.",
+ )
+ async def get_detail(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: OrderServiceDep,
+     order_id: Annotated[int, Path(ge=1)],
+     venue_id: Annotated[int, Query(ge=1)],
+@@ -187,11 +187,12 @@ async def cancel_order(
+     description="Chop etilgan chekning o'zgarmas nusxasi.",
+ )
+ async def get_receipt(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: ReceiptServiceDep,
+     order_id: Annotated[int, Path(ge=1)],
++    venue_id: Annotated[int, Query(ge=1)],
+ ) -> ReceiptRead:
+-    return await service.get_for_order(order_id)
++    return await service.get_for_order(order_id, venue_id)
+ 
+ 
+ @router.post(
+@@ -207,4 +208,4 @@ async def reprint_receipt(
+     order_id: Annotated[int, Path(ge=1)],
+     venue_id: Annotated[int, Query(ge=1)],
+ ) -> ReceiptRead:
+-    return await service.reprint(order_id)
++    return await service.reprint(order_id, venue_id)
+diff --git a/app/modules/orders/services/receipt_service.py b/app/modules/orders/services/receipt_service.py
+index b827382..757c159 100644
+--- a/app/modules/orders/services/receipt_service.py
++++ b/app/modules/orders/services/receipt_service.py
+@@ -50,14 +50,23 @@ class ReceiptService:
+             )
+         )
+ 
+-    async def get_for_order(self, order_id: int) -> ReceiptRead:
++    async def _require_order_at(self, order_id: int, venue_id: int) -> None:
++        """The route guard checks the caller works at `venue_id`; this checks the
++        order is that venue's, so one branch cannot read another's receipts."""
++        order = await self.orders.get_by_id(order_id)
++        if order is None or order.venue_id != venue_id:
++            raise NotFoundError("Bu muassasada bunday buyurtma topilmadi")
++
++    async def get_for_order(self, order_id: int, venue_id: int) -> ReceiptRead:
++        await self._require_order_at(order_id, venue_id)
+         receipt = await self.receipts.get_by_order(order_id)
+         if receipt is None:
+             raise NotFoundError("Bu buyurtma uchun chek chiqarilmagan")
+         return ReceiptRead.model_validate(receipt)
+ 
+-    async def reprint(self, order_id: int) -> ReceiptRead:
++    async def reprint(self, order_id: int, venue_id: int) -> ReceiptRead:
+         """Increments the counter and changes nothing else."""
++        await self._require_order_at(order_id, venue_id)
+         receipt = await self.receipts.get_by_order(order_id)
+         if receipt is None:
+             raise NotFoundError("Bu buyurtma uchun chek chiqarilmagan")
+diff --git a/app/modules/staff/api/v1/router.py b/app/modules/staff/api/v1/router.py
+index 7878e74..7bc8e79 100644
+--- a/app/modules/staff/api/v1/router.py
++++ b/app/modules/staff/api/v1/router.py
+@@ -14,6 +14,7 @@ from app.modules.staff.schemas import (
+     StaffInvitationCreate,
+     StaffInvitationCreated,
+     StaffRoleRead,
++    StaffWorkplaceRead,
+     VenueStaffListItem,
+     VenueStaffRead,
+ )
+@@ -54,6 +55,22 @@ async def staff_counts(
+     return await service.counts(group_id)
+ 
+ 
++@router.get(
++    "/me/workplaces",
++    response_model=list[StaffWorkplaceRead],
++    operation_id="venue_staff_my_workplaces",
++    summary="Mening ish joylarim",
++    description=(
++        "Chaqiruvchi ishlaydigan filiallar (yoki butun tarmoq — egasi va admin uchun), "
++        "roli va huquqlari. Xodim ilovaga kirganda panelini shu orqali ochadi."
++    ),
++)
++async def my_workplaces(
++    user: CurrentUser, service: StaffServiceDep
++) -> Sequence[StaffWorkplaceRead]:
++    return await service.workplaces(user.id)
++
++
+ @router.get(
+     "/roles",
+     response_model=list[StaffRoleRead],
+diff --git a/app/modules/staff/repositories/venue_staff_repository.py b/app/modules/staff/repositories/venue_staff_repository.py
+index 909ad82..667c026 100644
+--- a/app/modules/staff/repositories/venue_staff_repository.py
++++ b/app/modules/staff/repositories/venue_staff_repository.py
+@@ -2,10 +2,11 @@ from collections.abc import Sequence
+ from dataclasses import dataclass
+ from datetime import datetime
+ 
+-from sqlalchemy import func, or_, select, update
++from sqlalchemy import and_, func, or_, select, update
+ from sqlalchemy.ext.asyncio import AsyncSession
+ 
+ from app.modules.staff.models import Permission, StaffRolePermission, VenueStaff
++from app.modules.venues.models import Venue
+ 
+ 
+ @dataclass(frozen=True, slots=True)
+@@ -69,7 +70,12 @@ class VenueStaffRepository:
+         A group-scoped row (`venue_id IS NULL`) is an owner or admin and carries its
+         permissions at every branch in the chain, which is why the venue predicate
+         is an OR rather than an equality.
++
++        The group-scoped arm must still be pinned to *the branch's own chain*.
++        Without that, any owner — and registering a chain is open to every user —
++        held every permission at every branch of every other chain.
+         """
++        branch_group_id = select(Venue.venue_group_id).where(Venue.id == venue_id).scalar_subquery()
+         exists_stmt = (
+             select(VenueStaff.id)
+             .join(
+@@ -81,13 +87,68 @@ class VenueStaffRepository:
+                 VenueStaff.user_id == user_id,
+                 VenueStaff.is_active.is_(True),
+                 Permission.slug == permission_slug,
+-                or_(VenueStaff.venue_id == venue_id, VenueStaff.venue_id.is_(None)),
++                or_(
++                    VenueStaff.venue_id == venue_id,
++                    and_(
++                        VenueStaff.venue_id.is_(None),
++                        VenueStaff.venue_group_id == branch_group_id,
++                    ),
++                ),
++            )
++            .exists()
++        )
++        result = await self.session.execute(select(exists_stmt))
++        return bool(result.scalar_one())
++
++    async def works_at(self, user_id: int, venue_id: int) -> bool:
++        """Any active employment at this branch: a row for the branch itself, or a
++        group-scoped row in the branch's own chain. The read-side counterpart of
++        `has_permission` — reads need membership, not a specific slug."""
++        branch_group_id = select(Venue.venue_group_id).where(Venue.id == venue_id).scalar_subquery()
++        exists_stmt = (
++            select(VenueStaff.id)
++            .where(
++                VenueStaff.user_id == user_id,
++                VenueStaff.is_active.is_(True),
++                or_(
++                    VenueStaff.venue_id == venue_id,
++                    and_(
++                        VenueStaff.venue_id.is_(None),
++                        VenueStaff.venue_group_id == branch_group_id,
++                    ),
++                ),
+             )
+             .exists()
+         )
+         result = await self.session.execute(select(exists_stmt))
+         return bool(result.scalar_one())
+ 
++    async def user_ids_with_permission(self, venue_id: int, permission_slug: str) -> list[int]:
++        """Who should hear about this branch's work: everyone holding the slug here,
++        group-scoped holders of the branch's own chain included."""
++        branch_group_id = select(Venue.venue_group_id).where(Venue.id == venue_id).scalar_subquery()
++        result = await self.session.execute(
++            select(VenueStaff.user_id)
++            .join(
++                StaffRolePermission,
++                StaffRolePermission.staff_role_id == VenueStaff.staff_role_id,
++            )
++            .join(Permission, Permission.id == StaffRolePermission.permission_id)
++            .where(
++                VenueStaff.is_active.is_(True),
++                Permission.slug == permission_slug,
++                or_(
++                    VenueStaff.venue_id == venue_id,
++                    and_(
++                        VenueStaff.venue_id.is_(None),
++                        VenueStaff.venue_group_id == branch_group_id,
++                    ),
++                ),
++            )
++            .distinct()
++        )
++        return list(result.scalars().all())
++
+     async def has_group_permission(
+         self, user_id: int, venue_group_id: int, permission_slug: str
+     ) -> bool:
+diff --git a/app/modules/staff/schemas/__init__.py b/app/modules/staff/schemas/__init__.py
+index 7de78ca..658855a 100644
+--- a/app/modules/staff/schemas/__init__.py
++++ b/app/modules/staff/schemas/__init__.py
+@@ -11,6 +11,7 @@ from app.modules.staff.schemas.staff_role import (
+ )
+ from app.modules.staff.schemas.venue_staff import (
+     StaffCountsRead,
++    StaffWorkplaceRead,
+     VenueStaffCreate,
+     VenueStaffListItem,
+     VenueStaffRead,
+@@ -26,6 +27,7 @@ __all__ = [
+     "StaffInvitationRead",
+     "StaffRoleRead",
+     "StaffRoleWithPermissionsRead",
++    "StaffWorkplaceRead",
+     "VenueStaffCreate",
+     "VenueStaffListItem",
+     "VenueStaffRead",
+diff --git a/app/modules/staff/schemas/venue_staff.py b/app/modules/staff/schemas/venue_staff.py
+index 9a19c97..3e32cbe 100644
+--- a/app/modules/staff/schemas/venue_staff.py
++++ b/app/modules/staff/schemas/venue_staff.py
+@@ -4,6 +4,7 @@ from pydantic import BaseModel
+ 
+ from app.core.schemas import ReadSchema, UpdateSchema
+ from app.modules.auth.schemas import UserListItem
++from app.modules.staff.schemas.staff_role import StaffRoleRead
+ 
+ 
+ class VenueStaffCreate(BaseModel):
+@@ -47,3 +48,20 @@ class StaffCountsRead(ReadSchema):
+     total: int
+     active: int
+     inactive: int
++
++
++class StaffWorkplaceRead(ReadSchema):
++    """One place the caller works: a branch, or a whole chain for a group-scoped
++    role (owner, admin), in which case `venue_id` is null and every branch of the
++    chain is theirs.
++
++    `permissions` lets the app show only the sections the role can act on — a
++    waiter gets check-in and tables, not the menu builder.
++    """
++
++    venue_group_id: int
++    group_name: str
++    venue_id: int | None = None
++    venue_name: str | None = None
++    role: StaffRoleRead
++    permissions: list[str]
+diff --git a/app/modules/staff/services/staff_service.py b/app/modules/staff/services/staff_service.py
+index f0b8fba..a09312b 100644
+--- a/app/modules/staff/services/staff_service.py
++++ b/app/modules/staff/services/staff_service.py
+@@ -32,6 +32,7 @@ from app.modules.staff.schemas import (
+     StaffInvitationCreated,
+     StaffInvitationRead,
+     StaffRoleRead,
++    StaffWorkplaceRead,
+     VenueStaffListItem,
+     VenueStaffRead,
+ )
+@@ -107,6 +108,73 @@ class StaffService:
+                 return candidate
+         raise PermissionDeniedError("Siz bu muassasada ishlamaysiz")
+ 
++    async def require_membership(self, user_id: int, venue_id: int) -> None:
++        """The read guard: the caller must work at this branch (or own its chain)."""
++        if auth_disabled():
++            return
++        if not await self.staff.works_at(user_id, venue_id):
++            raise PermissionDeniedError(
++                "Siz bu filialda ishlamaysiz", details={"venue_id": venue_id}
++            )
++
++    async def require_group_membership(self, user_id: int, venue_group_id: int) -> None:
++        if auth_disabled():
++            return
++        if venue_group_id not in await self.group_ids_for(user_id):
++            raise PermissionDeniedError("Siz bu tarmoqda ishlamaysiz")
++
++    async def workplaces(self, user_id: int) -> Sequence[StaffWorkplaceRead]:
++        """Where the caller works and what they may do there — what the app needs
++        to open a staff member's panel, since `/venue/groups/me` answers owners only."""
++        from sqlalchemy import select
++
++        from app.modules.venue_groups.models import VenueGroup
++        from app.modules.venues.models import Venue
++
++        rows = await self.staff.list_for_user(user_id)
++        if not rows:
++            return []
++        group_ids = {row.venue_group_id for row in rows}
++        venue_ids = {row.venue_id for row in rows if row.venue_id is not None}
++        groups = dict(
++            (
++                await self.session.execute(
++                    select(VenueGroup.id, VenueGroup.name).where(VenueGroup.id.in_(group_ids))
++                )
++            ).all()
++        )
++        venues = (
++            dict(
++                (
++                    await self.session.execute(
++                        select(Venue.id, Venue.name).where(Venue.id.in_(venue_ids))
++                    )
++                ).all()
++            )
++            if venue_ids
++            else {}
++        )
++        roles = {role.id: role for role in await self.roles.list_active()}
++        slugs: dict[int, list[str]] = {}
++        out: list[StaffWorkplaceRead] = []
++        for row in rows:
++            role = roles.get(row.staff_role_id)
++            if role is None:
++                continue
++            if role.id not in slugs:
++                slugs[role.id] = sorted(await self.permissions.list_slugs_for_role(role.id))
++            out.append(
++                StaffWorkplaceRead(
++                    venue_group_id=row.venue_group_id,
++                    group_name=groups.get(row.venue_group_id, ""),
++                    venue_id=row.venue_id,
++                    venue_name=venues.get(row.venue_id) if row.venue_id else None,
++                    role=StaffRoleRead.model_validate(role),
++                    permissions=slugs[role.id],
++                )
++            )
++        return out
++
+     async def group_ids_for(self, user_id: int) -> set[int]:
+         """Every chain the person actively works in — the membership test behind
+         `VerifiedGroupId`."""
+diff --git a/app/modules/venue_groups/api/v1/router.py b/app/modules/venue_groups/api/v1/router.py
+index 38604c3..7823b6a 100644
+--- a/app/modules/venue_groups/api/v1/router.py
++++ b/app/modules/venue_groups/api/v1/router.py
+@@ -1,6 +1,6 @@
+ from fastapi import APIRouter, status
+ 
+-from app.core.dependencies import CurrentUser, SessionDep, require_permission
++from app.core.dependencies import CurrentUser, GroupMember, SessionDep, require_permission
+ from app.modules.venue_groups.schemas import (
+     VenueGroupRead,
+     VenueGroupUpdate,
+@@ -52,7 +52,7 @@ async def get_mine(user: CurrentUser, session: SessionDep) -> VenueGroupRead:
+     description="Boshqaruv panelidagi tarmoq nomi va uning barcha filiallari.",
+ )
+ async def get_with_branches(
+-    user: CurrentUser, session: SessionDep, group_id: int
++    user: GroupMember, session: SessionDep, group_id: int
+ ) -> VenueGroupWithBranchesRead:
+     return await VenueGroupService(session).get_with_branches(group_id)
+ 
+diff --git a/app/modules/venues/api/v1/venue.py b/app/modules/venues/api/v1/venue.py
+index 8ac9e44..04bd7aa 100644
+--- a/app/modules/venues/api/v1/venue.py
++++ b/app/modules/venues/api/v1/venue.py
+@@ -11,7 +11,12 @@ from typing import Annotated
+ 
+ from fastapi import APIRouter, Path, Query, status
+ 
+-from app.core.dependencies import CurrentUser, require_group_permission, require_permission
++from app.core.dependencies import (
++    GroupMember,
++    VenueMember,
++    require_group_permission,
++    require_permission,
++)
+ from app.modules.auth.schemas import UserRead
+ from app.modules.venues.api.dependencies import (
+     OnboardingServiceDep,
+@@ -62,7 +67,7 @@ async def create_branch(
+     description="Kirgan egasining tarmog'idagi filiallar.",
+ )
+ async def list_branches(
+-    user: CurrentUser,
++    user: GroupMember,
+     service: VenueServiceDep,
+     group_id: Annotated[int, Query(ge=1)],
+     status: Annotated[str | None, Query()] = None,
+@@ -78,7 +83,7 @@ async def list_branches(
+     description="Filiallar sarlavhasidagi Jami / Aktiv / Yopiq, bitta guruhlangan so'rovda.",
+ )
+ async def status_counts(
+-    user: CurrentUser,
++    user: GroupMember,
+     service: VenueServiceDep,
+     group_id: Annotated[int, Query(ge=1)],
+ ) -> VenueStatusCountsRead:
+@@ -95,7 +100,7 @@ async def status_counts(
+ async def get_branch(
+     service: VenueServiceDep,
+     venue_id: Annotated[int, Path(ge=1)],
+-    user: CurrentUser,
++    user: VenueMember,
+ ) -> VenueRead:
+     detail = await service.get_detail(venue_id)
+     return detail.venue
+@@ -144,7 +149,7 @@ async def replace_working_hours(
+     description="Buyurtmalar taxtasi uchun raqamlangan stollar.",
+ )
+ async def list_tables(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: VenueTableServiceDep,
+     venue_id: Annotated[int, Path(ge=1)],
+     zone_id: Annotated[int | None, Query(ge=1)] = None,
+@@ -177,7 +182,7 @@ async def create_tables_bulk(
+     description="Ichkari va Tashqari — Stollar taxtasidagi filtr uchun.",
+ )
+ async def list_zones(
+-    user: CurrentUser,
++    user: VenueMember,
+     service: VenueTableServiceDep,
+     venue_id: Annotated[int, Path(ge=1)],
+ ) -> Sequence[VenueZoneRead]:
+diff --git a/tests/api/test_contract.py b/tests/api/test_contract.py
+index e429769..f1912e9 100644
+--- a/tests/api/test_contract.py
++++ b/tests/api/test_contract.py
+@@ -3,7 +3,13 @@
+ from fastapi.routing import APIRoute
+ from httpx import AsyncClient
+ 
+-from app.core.dependencies import GroupPermissionRequired, PermissionRequired
++from app.core.dependencies import (
++    GroupMemberRequired,
++    GroupPermissionRequired,
++    PermissionRequired,
++    VenueMemberRequired,
++    get_verified_group_id,
++)
+ from tests.api.conftest import walk_routes
+ 
+ GUARDS = (PermissionRequired, GroupPermissionRequired)
+@@ -85,6 +91,48 @@ def test_every_staff_write_is_permission_guarded() -> None:
+     assert unguarded == []
+ 
+ 
++# Staff reads that are not about one chain's data, so there is nothing to scope.
++UNSCOPED_STAFF_READS = {
++    # The caller's own chain / workplaces: scoped by the token itself.
++    "/api/v1/venue/groups/me",
++    "/api/v1/venue/staff/me/workplaces",
++    # Reference data: the role catalogue is the same for every chain.
++    "/api/v1/venue/staff/roles",
++}
++
++
++def is_read_guarded(route: APIRoute) -> bool:
++    stack = [route.dependant]
++    while stack:
++        current = stack.pop()
++        call = current.call
++        if isinstance(call, (*GUARDS, VenueMemberRequired, GroupMemberRequired)):
++            return True
++        if call is get_verified_group_id:
++            return True
++        stack.extend(current.dependencies)
++    return False
++
++
++def test_every_staff_read_is_scoped_to_the_callers_workplace() -> None:
++    """The read-side twin of the write check.
++
++    `/venue/bookings` once answered any signed-in user for any branch — guest
++    names and phone numbers included — because a read needs no permission slug
++    and so it got no guard at all.
++    """
++    unguarded: list[str] = []
++    for path, route in walk_routes():
++        if not path.startswith(STAFF_PREFIX) or "GET" not in (route.methods or set()):
++            continue
++        if path in UNSCOPED_STAFF_READS:
++            continue
++        if not is_read_guarded(route):
++            unguarded.append(path)
++
++    assert unguarded == []
++
++
+ def test_every_guard_demands_a_seeded_permission() -> None:
+     """A slug typo is silent: `VenueStaffRepository.has_permission` joins on the
+     string, finds nothing and refuses everyone, which reads exactly like a missing
+diff --git a/tests/api/test_tenant_scope.py b/tests/api/test_tenant_scope.py
+new file mode 100644
+index 0000000..7d4e539
+--- /dev/null
++++ b/tests/api/test_tenant_scope.py
+@@ -0,0 +1,255 @@
++"""One chain's people never act on, or read, another chain's branch.
++
++Registering a chain is open to every user, so "is an owner somewhere" is no
++authority at all — every check here is about *which* chain.
++"""
++
++from datetime import time
++
++from httpx import AsyncClient
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from tests.api.conftest import auth_header
++from tests.repositories import factories
++
++
++async def make_chain(session: AsyncSession):
++    group = await factories.make_venue_group(session)
++    venue = await factories.make_venue(session, group=group)
++    await factories.make_working_hours(session, venue, time(8, 0), time(22, 0))
++    return group, venue
++
++
++async def test_an_owner_holds_no_permission_in_another_chain(
++    api_client: AsyncClient, session: AsyncSession
++) -> None:
++    _group, venue = await make_chain(session)
++    other_group, _ = await make_chain(session)
++    outsider = await factories.make_group_staff(session, other_group, role_slug="owner")
++    await factories.grant(session, "owner", "branch.manage", "bookings.confirm")
++
++    edit = await api_client.patch(
++        f"/api/v1/venue/venues/{venue.id}",
++        json={"street": "Yangi ko'cha"},
++        headers=auth_header(outsider.user_id),
++    )
++    confirm = await api_client.post(
++        "/api/v1/venue/bookings/1/confirm",
++        params={"venue_id": venue.id},
++        headers=auth_header(outsider.user_id),
++    )
++
++    assert edit.status_code == 403
++    assert confirm.status_code == 403
++
++
++async def test_an_owner_keeps_every_permission_in_their_own_chain(
++    api_client: AsyncClient, session: AsyncSession
++) -> None:
++    group, venue = await make_chain(session)
++    second = await factories.make_venue(session, group=group)
++    owner = await factories.make_group_staff(session, group, role_slug="owner")
++    await factories.grant(session, "owner", "branch.manage")
++
++    for branch in (venue, second):
++        response = await api_client.patch(
++            f"/api/v1/venue/venues/{branch.id}",
++            json={"street": "Yangi ko'cha"},
++            headers=auth_header(owner.user_id),
++        )
++        assert response.status_code == 200, response.text
++
++
++async def test_a_branch_day_list_is_refused_to_strangers(
++    api_client: AsyncClient, session: AsyncSession
++) -> None:
++    """The list carries guest names and phone numbers."""
++    group, venue = await make_chain(session)
++    waiter = await factories.make_staff(session, venue, group, role_slug="waiter")
++    stranger = await factories.make_user(session)
++    other_group, _ = await make_chain(session)
++    other_owner = await factories.make_group_staff(session, other_group)
++    params = {"venue_id": venue.id, "day": factories.business_day().isoformat()}
++
++    own = await api_client.get(
++        "/api/v1/venue/bookings", params=params, headers=auth_header(waiter.user_id)
++    )
++    assert own.status_code == 200
++    for intruder in (stranger.id, other_owner.user_id):
++        response = await api_client.get(
++            "/api/v1/venue/bookings", params=params, headers=auth_header(intruder)
++        )
++        assert response.status_code == 403
++
++
++async def test_a_guest_cannot_read_another_guests_thread(
++    api_client: AsyncClient, session: AsyncSession
++) -> None:
++    _group, venue = await make_chain(session)
++    guest = await factories.make_user(session)
++    intruder = await factories.make_user(session)
++    opened = await api_client.post(
++        "/api/v1/conversations", json={"venue_id": venue.id}, headers=auth_header(guest.id)
++    )
++    conversation_id = opened.json()["id"]
++    await api_client.post(
++        f"/api/v1/conversations/{conversation_id}/messages",
++        json={"body": "Salom"},
++        headers=auth_header(guest.id),
++    )
++
++    history = await api_client.get(
++        f"/api/v1/conversations/{conversation_id}/messages", headers=auth_header(intruder.id)
++    )
++    mark = await api_client.post(
++        f"/api/v1/conversations/{conversation_id}/read", headers=auth_header(intruder.id)
++    )
++
++    assert history.status_code == 404
++    assert mark.status_code == 404
++
++
++async def test_a_branch_reads_and_answers_its_guests(
++    api_client: AsyncClient, session: AsyncSession
++) -> None:
++    group, venue = await make_chain(session)
++    waiter = await factories.make_staff(session, venue, group, role_slug="waiter")
++    guest = await factories.make_user(session)
++    opened = await api_client.post(
++        "/api/v1/conversations", json={"venue_id": venue.id}, headers=auth_header(guest.id)
++    )
++    conversation_id = opened.json()["id"]
++    await api_client.post(
++        f"/api/v1/conversations/{conversation_id}/messages",
++        json={"body": "Shanba kuni joy bormi?"},
++        headers=auth_header(guest.id),
++    )
++    staff = auth_header(waiter.user_id)
++    venue_params = {"venue_id": venue.id}
++
++    inbox = await api_client.get("/api/v1/venue/conversations", params=venue_params, headers=staff)
++    assert inbox.status_code == 200
++    [row] = inbox.json()
++    assert row["id"] == conversation_id
++    assert row["unread_count"] == 1
++    assert row["user_name"] == f"{guest.first_name} {guest.last_name}"
++    assert row["venue_name"] == venue.name
++
++    reply = await api_client.post(
++        f"/api/v1/venue/conversations/{conversation_id}/messages",
++        params=venue_params,
++        json={"body": "Ha, bor"},
++        headers=staff,
++    )
++    assert reply.status_code == 201
++    assert reply.json()["sender_type"] == "venue"
++
++    read = await api_client.post(
++        f"/api/v1/venue/conversations/{conversation_id}/read",
++        params=venue_params,
++        headers=staff,
++    )
++    assert read.status_code == 200
++    assert len(read.json()) == 1
++
++    guest_view = await api_client.get(
++        f"/api/v1/conversations/{conversation_id}/messages", headers=auth_header(guest.id)
++    )
++    assert [m["body"] for m in guest_view.json()] == ["Ha, bor", "Shanba kuni joy bormi?"]
++    guest_inbox = await api_client.get("/api/v1/conversations", headers=auth_header(guest.id))
++    assert guest_inbox.json()[0]["unread_count"] == 1
++
++
++async def test_another_branch_cannot_reach_the_thread(
++    api_client: AsyncClient, session: AsyncSession
++) -> None:
++    """Staff of branch B, asking with branch B's id, still cannot open a thread
++    addressed to branch A."""
++    group, venue = await make_chain(session)
++    other = await factories.make_venue(session, group=group)
++    other_waiter = await factories.make_staff(session, other, group, role_slug="waiter")
++    guest = await factories.make_user(session)
++    opened = await api_client.post(
++        "/api/v1/conversations", json={"venue_id": venue.id}, headers=auth_header(guest.id)
++    )
++    conversation_id = opened.json()["id"]
++    staff = auth_header(other_waiter.user_id)
++
++    as_own_branch = await api_client.get(
++        f"/api/v1/venue/conversations/{conversation_id}/messages",
++        params={"venue_id": other.id},
++        headers=staff,
++    )
++    as_thread_branch = await api_client.get(
++        f"/api/v1/venue/conversations/{conversation_id}/messages",
++        params={"venue_id": venue.id},
++        headers=staff,
++    )
++
++    assert as_own_branch.status_code == 404
++    assert as_thread_branch.status_code == 403
++
++
++async def test_staff_see_their_workplaces(api_client: AsyncClient, session: AsyncSession) -> None:
++    group, venue = await make_chain(session)
++    waiter = await factories.make_staff(session, venue, group, role_slug="waiter")
++    owner = await factories.make_group_staff(session, group)
++
++    [place] = (
++        await api_client.get(
++            "/api/v1/venue/staff/me/workplaces", headers=auth_header(waiter.user_id)
++        )
++    ).json()
++    assert place["venue_id"] == venue.id
++    assert place["venue_name"] == venue.name
++    assert place["venue_group_id"] == group.id
++    assert place["role"]["slug"] == "waiter"
++    assert "bookings.confirm" in place["permissions"]
++    assert "menu.edit" not in place["permissions"]
++
++    [chain] = (
++        await api_client.get(
++            "/api/v1/venue/staff/me/workplaces", headers=auth_header(owner.user_id)
++        )
++    ).json()
++    assert chain["venue_id"] is None
++    assert chain["role"]["slug"] == "owner"
++
++    stranger = await factories.make_user(session)
++    nothing = await api_client.get(
++        "/api/v1/venue/staff/me/workplaces", headers=auth_header(stranger.id)
++    )
++    assert nothing.json() == []
++
++
++async def test_a_notification_is_marked_read_only_by_its_owner(
++    api_client: AsyncClient, session: AsyncSession
++) -> None:
++    from app.modules.engagement.services import NotificationService
++
++    owner = await factories.make_user(session)
++    intruder = await factories.make_user(session)
++    notification = await NotificationService(session).notify_in_transaction(
++        owner.id, "booking_confirmed", "Bron tasdiqlandi", "..."
++    )
++    await session.flush()
++
++    foreign = await api_client.post(
++        f"/api/v1/notifications/{notification.id}/read", headers=auth_header(intruder.id)
++    )
++    own = await api_client.post(
++        f"/api/v1/notifications/{notification.id}/read", headers=auth_header(owner.id)
++    )
++
++    assert foreign.status_code == 404
++    assert own.status_code == 200
++
++
++async def test_a_malformed_id_is_a_validation_error_not_a_crash(
++    api_client: AsyncClient, session: AsyncSession
++) -> None:
++    user = await factories.make_user(session)
++    response = await api_client.get(
++        "/api/v1/venue/groups/undefined/branches", headers=auth_header(user.id)
++    )
++    assert response.status_code == 422
+diff --git a/tests/repositories/factories.py b/tests/repositories/factories.py
+index 2f7eb1c..0a70601 100644
+--- a/tests/repositories/factories.py
++++ b/tests/repositories/factories.py
+@@ -213,6 +213,30 @@ async def make_staff(
+     return staff
+ 
+ 
++async def make_group_staff(
++    session: AsyncSession, group: VenueGroup, role_slug: str = "owner"
++) -> VenueStaff:
++    """A group-scoped employment, the way a real owner is stored: `venue_id IS NULL`.
++
++    `make_staff` pins every row to a branch, which is how a test of "another
++    chain's owner" once passed while a real owner — with no branch on the row —
++    held permissions at every branch of every chain."""
++    user = await make_user(session, role=UserRole.VENUE_OWNER)
++    role = await get_staff_role(session, role_slug)
++    staff = VenueStaff(
++        venue_group_id=group.id,
++        venue_id=None,
++        user_id=user.id,
++        staff_role_id=role.id,
++        role_scope=role.scope,
++        is_active=True,
++        invited_at=datetime.now(UTC).replace(tzinfo=None),
++    )
++    session.add(staff)
++    await session.flush()
++    return staff
++
++
+ async def make_menu_item(
+     session: AsyncSession,
+     group: VenueGroup,
+diff --git a/tests/test_push_transport.py b/tests/test_push_transport.py
+new file mode 100644
+index 0000000..f5c186e
+--- /dev/null
++++ b/tests/test_push_transport.py
+@@ -0,0 +1,46 @@
++"""The Expo sender: what it sends, and what it refuses to send."""
++
++import json
++
++import httpx
++
++from app.core.transports import ExpoPushSender
++
++
++async def test_sends_expo_tokens_with_data_and_skips_the_rest() -> None:
++    seen: list[list[dict]] = []
++
++    def handler(request: httpx.Request) -> httpx.Response:
++        seen.append(json.loads(request.content))
++        return httpx.Response(200, json={"data": [{"status": "ok"}]})
++
++    sender = ExpoPushSender(
++        "https://push.test/send", access_token="t0k", transport=httpx.MockTransport(handler)
++    )
++    await sender.send(
++        ["ExponentPushToken[abc]", "fcm-native-token", "ExponentPushToken[abc]"],
++        "Bron tasdiqlandi",
++        "Bahor — 24.10, 19:00",
++        {"type": "booking_confirmed", "booking_id": 7},
++    )
++
++    [batch] = seen
++    assert [m["to"] for m in batch] == ["ExponentPushToken[abc]"]
++    assert batch[0]["data"] == {"type": "booking_confirmed", "booking_id": 7}
++    assert batch[0]["channelId"] == "bookings"
++
++
++async def test_nothing_to_send_makes_no_request() -> None:
++    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
++        raise AssertionError("no request expected")
++
++    sender = ExpoPushSender("https://push.test/send", transport=httpx.MockTransport(handler))
++    await sender.send(["native-only"], "t", "b")
++
++
++async def test_a_provider_failure_is_swallowed() -> None:
++    sender = ExpoPushSender(
++        "https://push.test/send",
++        transport=httpx.MockTransport(lambda request: httpx.Response(503)),
++    )
++    await sender.send(["ExponentPushToken[x]"], "t", "b")
+-- 
+2.43.0
+

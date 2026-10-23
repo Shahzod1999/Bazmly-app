@@ -51,23 +51,25 @@ export default function PartnerMenu() {
         title={t("tabs.menu")}
         subtitle={ctx.venue?.name}
         right={
-          <IconButton
-            icon={<Plus size={22} color="#fff" />}
-            variant="primary"
-            accessibilityLabel={t("partner.addItem")}
-            onPress={() => {
-              setItem({
-                name: "",
-                price: "",
-                description: "",
-                categoryId: catId ?? categories.data?.[0]?.id ?? 0,
-              });
-              setItemOpen(true);
-            }}
-          />
+          ctx.can("menu.edit") ? (
+            <IconButton
+              icon={<Plus size={22} color="#fff" />}
+              variant="primary"
+              accessibilityLabel={t("partner.addItem")}
+              onPress={() => {
+                setItem({
+                  name: "",
+                  price: "",
+                  description: "",
+                  categoryId: catId ?? categories.data?.[0]?.id ?? 0,
+                });
+                setItemOpen(true);
+              }}
+            />
+          ) : undefined
         }
       />
-      <PartnerGate>
+      <PartnerGate need="menu.edit">
         {() => (
           <View style={{ flex: 1 }}>
             <ScrollView

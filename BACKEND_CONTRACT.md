@@ -34,53 +34,44 @@ Swagger: `/api/docs`. Mijoz ilovasi uchun alohida hujjat `/api/docs/app` da, bos
 | To'yxona narxi mehmonlar soniga qarab bosqichdan olinadi (`guest_tiers`) | Bron oqimida bosqichlar va narxlar ko'rsatiladi, mehmonlar soni shu oraliqlarda cheklanadi. Bosqich bo'lmasa onlayn bron yopiq (backend baribir `capacity_exceeded` qaytaradi) |
 | Google orqali kirish (`DECISIONS.md` Part 9 da tilga olingan) | `bazmly-backend` da bunday endpoint yo'q, shuning uchun ilovada ham yo'q. Qo'shilsa, ilovaga Google client ID'lari bilan ulanadi |
 
-## Backend uchun ochiq masalalar
+## Backend uchun tayyor patch (birinchi navbatda)
 
-### 0. Xodim o'z ish joyini aniqlay olmaydi (muhim)
+`backend-patches/0001-*.patch` — `bazmly-backend` `main` ga toza qo'llanadi (`git am`), 236 test o'tadi. Qo'llash tartibi: `backend-patches/README.md`.
 
-`GET /venue/groups/me` faqat tarmoq **egasi** uchun ishlaydi. Menejer, ofitsiant va boshqa xodimlar (`bzmana201` va h.k.) uchun u `404 "Sizda hali tarmoq yo'q"` qaytaradi. Boshqa barcha `/venue/...` endpointlari esa `venue_id` yoki `group_id` talab qiladi. Natijada xodim ilovaga kiradi, lekin qaysi filialda ishlashini bilib bo'lmaydi va bronlar, check-in hamda stollar unga yopiq. Ilova hozir xodimga "Ish joyingiz hali ulanmagan" deb ko'rsatadi. Kerak:
+### Xavfsizlik — production'da hozir ochiq
 
-```
-GET /venue/staff/me/workplaces → [{ venue_id, venue_name, group_id, role: StaffRoleRead, permissions: string[] }]
-```
+Lokal backend'da amalda tasdiqlangan:
 
-Endpoint qo'shilgach, ilova xodimni o'sha filial paneliga olib kiradi. Panel bo'limlari `permissions` ga qarab ko'rsatiladi: ofitsiantga faqat check-in va stollar.
+1. **Boshqa tarmoqni boshqarish.** `VenueStaffRepository.has_permission` da tarmoq darajasidagi yozuv (`venue_id IS NULL`, ya'ni ega yoki admin) filial *qaysi tarmoqqa* tegishli ekanini tekshirmasdi. Hamkor bo'lib ro'yxatdan o'tish esa hammaga ochiq. Natijada istalgan foydalanuvchi o'z tarmog'ini yaratib, boshqa har qanday muassasada bronlarni tasdiqlash yoki bekor qilish, menyu, filial, xodimlar bo'yicha amallarni bajara olardi. Mavjud test buni ko'rmagan, chunki u "begona egani" filialga biriktirib yaratadi.
+2. **Hamkor o'qish endpointlari himoyasiz edi.** `GET /venue/bookings` (mehmon ismi va telefoni bilan), `/venue/orders*`, chek, menyu, stollar, zonalar va filiallar ro'yxatini istalgan tizimga kirgan foydalanuvchi istalgan `venue_id` bilan o'qiy olardi. Endi "shu filialda yoki tarmoqda ishlaydi" sharti qo'yildi va kontrakt testi har bir hamkor `GET` endpointining himoyalanganini tekshiradi.
+3. **Begona suhbatni o'qish.** `GET /conversations/{id}/messages` va `/read` suhbat egasini tekshirmasdi. Bildirishnomani o'qilgan deb belgilash ham shunday edi.
+4. Bir filial boshqa filial chekini olishi yoki qayta chiqarishi mumkin edi (`order_id` tekshirilmasdi).
 
-### 1. Push haqiqatda yuborilmaydi (muhim)
+### Patch qo'shadigan imkoniyatlar (ilova ularga ulangan)
 
-`app/core/transports.py` da standart `LoggingPushSender` faqat log yozadi. Ilova `POST /users/me/devices` ga **Expo push token** (`ExponentPushToken[...]`) yuboradi. Uni yetkazish uchun sender quyidagicha bo'lishi mumkin:
+| Endpoint / o'zgarish | Ilovada |
+|---|---|
+| `GET /venue/staff/me/workplaces` → filial(lar), rol, huquqlar | Menejer, ofitsiant, oshpaz va boshqa xodimlar o'z filiali paneliga tushadi. Bo'limlar va tugmalar huquqqa qarab ko'rsatiladi: ofitsiantga menyu va xodimlar yopiq, hisobot ko'rinmaydi; oshpazda check-in yo'q |
+| `GET/POST /venue/conversations…` | Hamkor bosh sahifasida "Xabarlar" tugmasi (o'qilmaganlar soni bilan), suhbatlar ro'yxati (mijoz ismi bilan) va javob yozish |
+| `ConversationListItem.venue_name`, `user_name` | Ro'yxatlarda nomlar qo'shimcha so'rovsiz |
+| `ExpoPushSender` (`APP_CONFIG__PUSH__PROVIDER=expo`) | Push haqiqatda yetkaziladi |
+| Bildirishnomalar mantig'i | Mijozga: "so'rov yuborildi", "tasdiqlandi", "rad etildi", muassasa javobi. Xodimga: "yangi bron so'rovi" va mijoz xabari. Avval `pending` bronga darhol "Bron tasdiqlandi" ketardi, nomi esa bo'sh edi |
+| Bron javobida `venue_name` | Endi to'ldiriladi (avval `""`) |
 
-```python
-class ExpoPushSender:
-    URL = "https://exp.host/--/api/v2/push/send"
+Patch qo'llanmaguncha ilova eski backend bilan ham ishlaydi: `me/workplaces` topilmasa, egani `GET /venue/groups/me` orqali aniqlaydi. Bu holatda xodimlar paneli va chat javobi ishlamaydi.
 
-    async def send(self, tokens: list[str], title: str, body: str, data: dict | None = None) -> None:
-        messages = [{"to": t, "title": title, "body": body, "data": data or {}, "sound": "default",
-                     "channelId": "bookings"} for t in tokens if t.startswith("ExponentPushToken")]
-        if not messages:
-            return
-        async with httpx.AsyncClient(timeout=10) as client:
-            for i in range(0, len(messages), 100):  # Expo: bir so'rovda 100 tagacha
-                await client.post(self.URL, json=messages[i:i + 100])
+Push `data`:
 
-# lifespan'da: set_push_sender(ExpoPushSender())
-```
+| `data.type` | Kimga | Maydonlar | Ilova ochadigan ekran |
+|---|---|---|---|
+| `booking_requested`, `booking_confirmed`, `booking_rejected` | mijoz | `booking_id`, `venue_id` | Chipta |
+| `new_booking` | xodim (`bookings.confirm`) | `booking_id`, `venue_id` | Hamkor → Bronlar |
+| `message` | mijoz | `conversation_id`, `venue_id` | Chat |
+| `guest_message` | xodim | `conversation_id`, `venue_id` | Hamkor → Xabarlar |
 
-Push'da `data` ham bo'lishi kerak, shunda bildirishnoma bosilganda ilova kerakli ekranni ochadi:
+## Backend uchun qolgan ochiq masalalar
 
-| `data.type` | Maydonlar | Ilova ochadigan ekran |
-|---|---|---|
-| `booking_confirmed`, `booking_rejected`, `booking_reminder` | `booking_id` | Chipta |
-| `new_booking` (hamkorga) | `booking_id` | Hamkor → Bronlar |
-| `message` | `conversation_id` | Chat |
-
-FCM/APNs bilan to'g'ridan-to'g'ri ishlash tanlansa, ilovada `EXPO_PUBLIC_PUSH_TOKEN_KIND=native` qo'yiladi va native token yuboriladi.
-
-### 2. Bron javobida `venue_name` bo'sh (xato)
-
-`POST /bookings/table`, `POST /bookings/hall` va `GET /bookings/{id}` `venue_name: ""` qaytaradi: `booking_service.py` da `_detail_in_transaction(..., venue_name=None)` chaqiriladi va `venue_name or ""` bo'lib qoladi. Ilova vaqtincha nomni `GET /venues/{id}` dan oladi (`useBookingVenueName`). Tuzatish: venue nomini o'qib uzatish (`venue.name` create'da allaqachon bor).
-
-### 3. Hamkor to'yxona narx bosqichlarini kirita olmaydi
+### 1. Hamkor to'yxona narx bosqichlarini kirita olmaydi
 
 `venue_guest_tiers` faqat seed orqali to'ldiriladi. Hamkor uchun bosqich yaratish yoki tahrirlash endpointi yo'q (`/venue/venues/{id}/guest-tiers`). Bosqichsiz to'yxonani esa bron qilib bo'lmaydi (`capacity_exceeded`). Real muassasalar ulanishidan oldin kerak:
 
@@ -91,11 +82,11 @@ PUT    /venue/venues/{id}/guest-tiers                [{ min_guests, max_guests|n
 
 Bosqichlar ustma-ust tushmasligi kerak (hozir seed'da 150–200 va 200–300 chegarada kesishadi). Endpoint tayyor bo'lgach, hamkor sozlamalariga tahrirlash ekrani qo'shiladi.
 
-### 4. Depozit qanday to'lanadi?
+### 2. Depozit qanday to'lanadi?
 
 Backend depozitni hisoblaydi (`deposit_amount`, narx qatori `deposit`). `deposit_paid_at` ham bor, lekin uni belgilaydigan endpoint yo'q. Mijozga hozir "to'lov tartibini muassasa kelishadi" deb aytilyapti. Agar muassasa depozitni olganini panelda belgilashi kerak bo'lsa (masalan, `POST /venue/bookings/{id}/deposit-received`), hamkor ilovasiga tugma qo'shiladi.
 
-### 5. Venue suratlarini yuklash
+### 3. Venue suratlarini yuklash
 
 `PATCH /venue/venues/{id}/onboarding/media-done` bor, lekin suratni yuklaydigan endpoint yo'q. Shu sababli hamkor ro'yxatdan o'tishda tanlagan suratlar yuborilmaydi. Taklif:
 
@@ -104,41 +95,28 @@ POST   /venue/venues/{id}/photos          multipart: file (jpeg/webp ≤ 5 MB) �
 DELETE /venue/venues/{id}/photos/{photo_id} → 204
 ```
 
-### 6. Qidiruv natijasida koordinata
+### 4. Qidiruv natijasida koordinata
 
 `VenueListItem` da `latitude` / `longitude` yo'q. Xarita rejimida ilova har bir venue uchun alohida `GET /venues/{id}` so'raydi (30 tagacha so'rov). Ikkala maydonni (`VenueRead` dagi kabi string) qo'shish bu so'rovlarni keraksiz qiladi.
 
-### 7. To'yxonada xizmat turi
+### 5. To'yxonada xizmat turi
 
 "Tayyor dasturxon" yoki "O'zimiz tayyorlaymiz" tanlovi uchun `HallEventCreate` da maydon yo'q, hozir u `note` ichiga matn bo'lib yoziladi. Taklif: `service_mode: "ready" | "own"`.
 
-### 8. Production ma'lumotlari
+### 6. Production ma'lumotlari
 
 - 1-venue ("Bahor Chilonzor", 96 o'rin) uchun `GET /venues/1/tables` har doim bo'sh qaytadi. Stollar kiritilmagan bo'lsa, mijoz uni bron qila olmaydi.
 - To'yxonalarda `guest_tiers` bo'lmasa, onlayn bron yopiq bo'ladi.
 
-### 9. Mijoz bronga sharh qoldirganini bilib bo'lmaydi
+### 7. Mijoz bronga sharh qoldirganini bilib bo'lmaydi
 
 `BookingListItem` da `has_review` maydoni ham, "mening sharhlarim" endpointi ham yo'q. Ilova sharh qoldirilgan bronlarni qurilmada eslab qoladi va `409 already_reviewed` kelsa ham shunday belgilaydi. Boshqa qurilmada esa "Sharh yozish" tugmasi qayta chiqadi. Taklif: `BookingListItem.has_review: bool`.
 
-### 10. Chat: muassasa javob bera olmaydi (reliz oldidan muhim)
-
-Mijoz `POST /conversations` va `POST /conversations/{id}/messages` orqali yozadi. Lekin muassasa tomoni uchun router yo'q: `ConversationService.list_for_venue` bor, ammo hech qaysi endpoint uni chaqirmaydi va `sender_type=venue` bilan xabar yuborib bo'lmaydi. Natijada mijoz xabari hech kimga yetib bormaydi. Kerak:
-
-```
-GET  /venue/conversations?venue_id=          → ConversationListItem[] (mijoz ismi bilan)
-GET  /venue/conversations/{id}/messages      → MessageRead[]
-POST /venue/conversations/{id}/messages      { body } → MessageRead  (sender_type=venue)
-POST /venue/conversations/{id}/read
-```
-
-Shuningdek `ConversationListItem` da `venue_name` yo'q: ilova nomni har bir suhbat uchun `GET /venues/{id}` dan oladi. Endpointlar qo'shilgach, hamkor paneliga "Xabarlar" bo'limi qo'shiladi. Ilovadagi "Ma'muriyat onlayn" yozuvi olib tashlandi, chunki u haqiqatga mos emas edi.
-
-### 11. Do'st qo'shib bo'lmaydi
+### 8. Do'st qo'shib bo'lmaydi
 
 `POST /users/me/friends` `addressee_id` (foydalanuvchi ID) talab qiladi, lekin foydalanuvchini telefon yoki ism bo'yicha topadigan endpoint yo'q. Shuning uchun ilovada do'stlar ro'yxati va kelgan so'rovlarni qabul qilish bor, ammo so'rov yuborish yo'q. Taklif: `POST /users/me/friends { phone }` yoki `GET /users/lookup?phone=`.
 
-### 12. Yangi tarmoq `draft` holatida qoladi
+### 9. Yangi tarmoq `draft` holatida qoladi
 
 Ro'yxatdan o'tish ustasi oxirida filial `active` bo'ladi va qidiruvda ko'rinadi, tarmoq (`venue_groups.status`) esa `draft` bo'lib qoladi. Uni faqat admin o'zgartiradi. Agar bu moderatsiya bosqichi bo'lsa, qidiruv ham tarmoq holatini tekshirishi kerak. Aks holda tekshirilmagan muassasa darhol mijozlarga ko'rinadi.
 
@@ -147,10 +125,12 @@ Ro'yxatdan o'tish ustasi oxirida filial `active` bo'ladi va qidiruvda ko'rinadi,
 `bazmly-backend` (barcha migratsiyalar va `scripts.seed_demo`) lokal Postgres/PostGIS'da ishga tushirilib, ilova unga ulangan holda sinaldi. Mock ishlatilmagan.
 
 - `npm run smoke`: mijoz 37/37, muassasa egasi 52/52 endpoint. Avval `GET /venue/analytics/revenue` xato berdi: ilova noto'g'ri parametr (`period` → `current_from/…`) va noto'g'ri javob tipi (`PeriodComparisonRead`) ishlatardi. Tuzatildi.
-- Xodim akkaunti (`bzmana201`) bilan: kirish ishlaydi, `/venue/groups/me` → 404 (§0).
+- Xodim akkaunti (`bzmana201`) bilan: patch'siz backend'da `/venue/groups/me` → 404, ish joyini aniqlab bo'lmaydi; patch bilan menejer o'z filiali paneliga tushadi.
 - E2E (brauzer): ro'yxatdan o'tgan mijoz parol bilan kiradi → to'yxona → narx bosqichi → bron (UI narxi backend bilan bir xil) → muassasa egasi panelda tasdiqlaydi → QR orqali check-in (`checked_in`). Restoranda stol broni ham o'tdi.
 - Hamkor paneli (E2E): bronni rad etish, check-out, kategoriya va taom qo'shish, xodim taklifi, muassasa profili va ish vaqtini saqlash. Yangi hamkorning ro'yxatdan o'tishi: tarmoq, filial, 8 ta stol, onboarding bosqichlari → filial `active`, qidiruvda ko'rinadi, ilova panelga o'tkazadi.
 - Mijoz (E2E): sharh qoldirish, bronni bekor qilish, sevimlilar, muassasaga xabar yozish, xabarlar ro'yxati, do'stlar va bildirishnomalar ekranlari.
+- Patch bilan (E2E): ofitsiant panelga tushadi, faqat ruxsat berilgan bo'limlarni ko'radi, mijoz xabariga javob yozadi, mijoz javobni ko'radi; oshpaz, menejer va ega bo'limlari roliga mos. Bron yaratish va tasdiqlashda push to'g'ri turlar bilan ketadi.
+- `npm run smoke`: mijoz 37/37 (begona filial bronlari va suhbatlari endi 403), ega 54/54.
 - Shu sinovda topilib, ilovada tuzatilgan xatolar:
   - `/venue/bookings` filtri: ilova `status` yuborardi, backend esa `statuses` (ro'yxat) kutadi, shuning uchun filtr jimgina ishlamasdi;
   - dashboard'da `venue_id` yo'q edi (422);

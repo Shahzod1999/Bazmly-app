@@ -436,7 +436,8 @@
     "placeholder": "Type a message...",
     "send": "Send",
     "empty": "Write your first message to the venue",
-    "venue": "Venue"
+    "venue": "Venue",
+    "you": "You"
   },
   "review": {
     "title": "Leave a review",
@@ -526,7 +527,13 @@
     "todayQueueHint": "Confirmed guests expected today who haven't arrived yet",
     "staffNoWorkplace": "Your workplace isn't connected yet",
     "staffNoWorkplaceHint": "The staff panel is coming soon. For now, bookings and check-in are available in the venue owner's account.",
-    "openCustomer": "Open customer mode"
+    "openCustomer": "Open customer mode",
+    "noAccess": "This section isn't available",
+    "noAccessHint": "The \"{{role}}\" role doesn't have access to this section. Ask your manager if you need it.",
+    "messages": "Messages",
+    "messagesEmpty": "No messages from guests yet",
+    "messagesHint": "When a guest taps \"Message\" on your venue page, the conversation appears here",
+    "guest": "Guest"
   },
   "partnerRegister": {
     "title": "Add venue",

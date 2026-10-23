@@ -435,7 +435,8 @@
     "placeholder": "Xabar yozing...",
     "send": "Yuborish",
     "empty": "Muassasaga birinchi xabaringizni yozing",
-    "venue": "Muassasa"
+    "venue": "Muassasa",
+    "you": "Siz"
   },
   "review": {
     "title": "Sharh qoldiring",
@@ -525,7 +526,13 @@
     "todayQueueHint": "Bugun keladigan, hali kirmagan mehmonlar",
     "staffNoWorkplace": "Ish joyingiz hali ulanmagan",
     "staffNoWorkplaceHint": "Xodimlar uchun panel ishga tushirilmoqda. Hozircha bronlar va check-in muassasa egasi akkauntida mavjud.",
-    "openCustomer": "Mijoz rejimini ochish"
+    "openCustomer": "Mijoz rejimini ochish",
+    "noAccess": "Bu bo'lim sizga yopiq",
+    "noAccessHint": "\"{{role}}\" roli uchun bu bo'limga ruxsat berilmagan. Kerak bo'lsa, rahbaringizga murojaat qiling.",
+    "messages": "Xabarlar",
+    "messagesEmpty": "Mijozlardan hali xabar yo'q",
+    "messagesHint": "Mijoz muassasa sahifasida \"Xabar yozish\" ni bossa, suhbat shu yerda paydo bo'ladi",
+    "guest": "Mijoz"
   },
   "partnerRegister": {
     "title": "Muassasa qo'shish",

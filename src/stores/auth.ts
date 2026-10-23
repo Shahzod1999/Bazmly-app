@@ -22,12 +22,12 @@ interface AuthState {
   status: AuthStatus;
   user: UserRead | null;
   /**
-   * Foydalanuvchi tarmoq egasimi (`GET /venue/groups/me` → 200).
+   * Foydalanuvchi biror muassasada ishlaydimi yoki tarmoq egasimi (`GET /venue/staff/me/workplaces`).
    * Backend huquqlarni `users.role` dan emas, `venue_staff` dan o'qiydi: muassasa yaratgan
    * mijozning roli `customer` bo'lib qoladi, lekin u egasi. Shu sababli panelga kirish shunga qaraydi.
    */
-  ownsGroup: boolean;
-  /** Egalik holatini backend'dan yangilaydi */
+  hasWorkplace: boolean;
+  /** Ish joylarini backend'dan yangilaydi */
   checkPartnerAccess: () => Promise<boolean>;
   bootstrap: () => Promise<void>;
   refreshUser: () => Promise<UserRead | null>;
@@ -53,24 +53,22 @@ interface AuthState {
 export const useAuth = create<AuthState>()((set, get) => ({
   status: "booting",
   user: null,
-  ownsGroup: false,
+  hasWorkplace: false,
 
   async checkPartnerAccess() {
     try {
-      await partnerService.getMyGroup();
-      set({ ownsGroup: true });
-      return true;
-    } catch (e: any) {
-      // 404 — tarmoq yo'q; boshqa xatoda (internet yo'q) oldingi holat saqlanadi
-      if (e?.status === 404 || e?.status === 403) set({ ownsGroup: false });
-      return get().ownsGroup;
+      const places = await partnerService.getMyWorkplaces();
+      set({ hasWorkplace: places.length > 0 });
+    } catch {
+      // Internet yo'q yoki server xatosi — oldingi holat saqlanadi
     }
+    return get().hasWorkplace;
   },
 
   async bootstrap() {
     await loadTokens();
     if (!getAccessToken()) {
-      set({ status: "guest", user: null, ownsGroup: false });
+      set({ status: "guest", user: null, hasWorkplace: false });
       return;
     }
     // Profil yuklanmasa ham (internet yo'q) tokenni saqlab, guest emas, authed holatda qolamiz —
@@ -82,7 +80,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
     } catch (e: any) {
       if (e?.status === 401 || e?.status === 403) {
         clearTokens();
-        set({ status: "guest", user: null, ownsGroup: false });
+        set({ status: "guest", user: null, hasWorkplace: false });
       } else {
         set({ status: "authed" });
       }
@@ -153,18 +151,18 @@ export const useAuth = create<AuthState>()((set, get) => ({
       /* server xatosi bo'lsa ham lokal chiqamiz */
     }
     clearTokens();
-    set({ status: "guest", user: null, ownsGroup: false });
+    set({ status: "guest", user: null, hasWorkplace: false });
   },
 
   async deleteAccount() {
     await userService.deleteMe();
     clearTokens();
-    set({ status: "guest", user: null, ownsGroup: false });
+    set({ status: "guest", user: null, hasWorkplace: false });
   },
 
   forceGuest() {
     clearTokens();
-    set({ status: "guest", user: null, ownsGroup: false });
+    set({ status: "guest", user: null, hasWorkplace: false });
   },
 }));
 
@@ -175,13 +173,13 @@ export function isPartnerRole(role: UserRole | undefined | null): boolean {
   return !!role && PARTNER_ROLES.includes(role);
 }
 
-/** Hamkor paneli ochilsinmi: hamkor roli yoki tarmoq egaligi (backend `venue_staff` asosida) */
-export function isPartner(state: Pick<AuthState, "user" | "ownsGroup"> = useAuth.getState()): boolean {
-  return isPartnerRole(state.user?.role) || state.ownsGroup;
+/** Hamkor paneli ochilsinmi: hamkor roli yoki ish joyi bor (backend `venue_staff` asosida) */
+export function isPartner(state: Pick<AuthState, "user" | "hasWorkplace"> = useAuth.getState()): boolean {
+  return isPartnerRole(state.user?.role) || state.hasWorkplace;
 }
 
 export function useIsPartner(): boolean {
-  return useAuth((s) => isPartnerRole(s.user?.role) || s.ownsGroup);
+  return useAuth((s) => isPartnerRole(s.user?.role) || s.hasWorkplace);
 }
 
 export function useIsAuthed() {

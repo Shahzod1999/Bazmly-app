@@ -48,12 +48,12 @@ export default function ConversationsScreen() {
   );
 }
 
-/** `ConversationListItem` da muassasa nomi yo'q (BACKEND_CONTRACT §10) — nom `GET /venues/{id}` dan olinadi */
 function ConversationRow({ item }: { item: ConversationListItem }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const venue = useVenue(item.venue_id);
-  const name = venue.data?.venue.name ?? t("chat.venue");
+  // Eski backend `venue_name` qaytarmaydi — shunda nom `GET /venues/{id}` dan olinadi
+  const venue = useVenue(item.venue_name ? 0 : item.venue_id);
+  const name = item.venue_name || venue.data?.venue.name || t("chat.venue");
   return (
     <Card
       onPress={() =>

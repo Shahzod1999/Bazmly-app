@@ -1,6 +1,24 @@
-import { apiFetch } from "../client";
+import { apiFetch, BazmlyApiError } from "../client";
+
+/** Backend seed'idagi "owner" roli huquqlari (eski backend uchun moslik) */
+const OWNER_PERMISSIONS = [
+  "branch.manage",
+  "branch.create",
+  "staff.manage",
+  "menu.edit",
+  "menu.publish",
+  "orders.open",
+  "orders.add_items",
+  "orders.close",
+  "orders.discount",
+  "bookings.confirm",
+  "bookings.cancel",
+  "reports.view",
+  "settings.edit",
+] as const;
 import {
   VenueGroupRead,
+  StaffWorkplaceRead,
   VenueGroupUpdate,
   VenueGroupWithBranchesRead,
   VenueGroupWithBranchCreate,
@@ -37,6 +55,36 @@ export const partnerService = {
       method: "POST",
       body: JSON.stringify(data),
     });
+  },
+
+  /**
+   * Xodim yoki ega ishlaydigan joylar, roli va huquqlari. Bo'sh ro'yxat — hamkor emas.
+   *
+   * Endpoint backend'ga 2026-10 da qo'shilgan. Eski backend'da yo'l topilmaydi (404, `code` yo'q).
+   * Shunda faqat egani aniqlash mumkin: `GET /venue/groups/me`. Xodim esa bo'sh ro'yxat oladi.
+   */
+  async getMyWorkplaces(): Promise<StaffWorkplaceRead[]> {
+    try {
+      return await apiFetch<StaffWorkplaceRead[]>("/api/v1/venue/staff/me/workplaces");
+    } catch (e) {
+      if (!(e instanceof BazmlyApiError) || e.status !== 404 || e.code !== "unknown_error") throw e;
+    }
+    try {
+      const group = await apiFetch<VenueGroupRead>("/api/v1/venue/groups/me");
+      return [
+        {
+          venue_group_id: group.id,
+          group_name: group.name,
+          venue_id: null,
+          venue_name: null,
+          role: { id: 0, slug: "owner", scope: "group", name: "Egasi", sort_order: 0 },
+          permissions: [...OWNER_PERMISSIONS],
+        },
+      ];
+    } catch (e) {
+      if (e instanceof BazmlyApiError && e.status === 404) return [];
+      throw e;
+    }
   },
 
   async getMyGroup(): Promise<VenueGroupRead> {

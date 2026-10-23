@@ -37,7 +37,7 @@ export default function VouchersScreen() {
       {!authed ? (
         <GuestGate redirect="/vouchers" />
       ) : tab === "vouchers" ? (
-        // Promokodlar uchun backend API hali yo'q (BACKEND_CONTRACT §5). Web'dagi ro'yxat hardcode edi.
+        // Promokodlar yo'q: backend qarori (DECISIONS.md Part 10). Web'dagi ro'yxat hardcode edi.
         <EmptyState
           icon={<TicketPercent size={30} color={colors.primary} />}
           title={t("tickets.vouchersEmpty")}

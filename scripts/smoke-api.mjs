@@ -165,7 +165,8 @@ async function check(name, method, path, { schema, expect = [200], ...opts } = {
   }
   const details = [];
   let result = "pass";
-  if (schema && r.status !== 204) {
+  // Sxema faqat muvaffaqiyatli javobga qo'llanadi; kutilgan xato (403/404) tanasi xato konverti
+  if (schema && r.status >= 200 && r.status < 300 && r.status !== 204) {
     const v = validate(schema, r.data);
     if (v.errors.length) {
       result = "fail";
@@ -332,11 +333,22 @@ async function main() {
     const t = { token: partnerToken };
     // Mijoz tokeni bilan sinalayotgan bo'lsa, guruh yo'qligi (404) xato emas
     const usingCustomerToken = !(env.SMOKE_STAFF_LOGIN && env.SMOKE_STAFF_PASSWORD);
-    const myGroup = await check("", "GET", "/venue/groups/me", {
+    await check("", "GET", "/venue/staff/me/workplaces", { ...t, schema: arrayOf("StaffWorkplaceRead") });
+    const myGroupRes = await check("", "GET", "/venue/groups/me", {
       ...t,
       schema: ref("VenueGroupRead"),
       expect: usingCustomerToken ? [200, 404] : [200],
     });
+    const myGroup = myGroupRes?.id ? myGroupRes : null;
+    if (!myGroup && usingCustomerToken) {
+      // Hamkor bo'lmagan akkaunt boshqa muassasaning ma'lumotini o'qiy olmasligi kerak
+      await check("", "GET", "/venue/bookings", {
+        ...t,
+        query: { venue_id: env.SMOKE_VENUE_ID || 1, day: new Date().toISOString().slice(0, 10) },
+        expect: [403],
+      });
+      await check("", "GET", "/venue/conversations", { ...t, query: { venue_id: env.SMOKE_VENUE_ID || 1 }, expect: [403] });
+    }
     if (!myGroup) {
       skip("Qolgan hamkor endpointlari", "akkauntda hamkor guruhi yo'q");
     } else {
@@ -367,6 +379,7 @@ async function main() {
         });
         await check("", "GET", "/venue/staff", { ...t, query: { group_id: gid, venue_id: vid }, schema: arrayOf("VenueStaffListItem") });
         await check("", "GET", "/venue/staff/counts", { ...t, query: { group_id: gid }, schema: ref("StaffCountsRead") });
+        await check("", "GET", "/venue/conversations", { ...t, query: { venue_id: vid }, schema: arrayOf("ConversationListItem") });
         await check("", "GET", "/venue/staff/roles", { ...t, schema: arrayOf("StaffRoleRead") });
         await check("", "GET", "/venue/menu/categories", { ...t, query: { group_id: gid, venue_id: vid }, schema: arrayOf("MenuCategoryRead") });
         await check("", "GET", "/venue/menu/items", { ...t, query: { venue_id: vid }, schema: arrayOf("MenuItemListItem") });

@@ -44,8 +44,8 @@ Jamoaga tarqatish uchun: `--profile preview` (o'rnatiladigan ilova, dev serversi
 ## 2. Production
 
 Talablar:
-1. Backend'da push yuborish ulangan bo'lishi kerak (`BACKEND_CONTRACT.md` → 1-masala). Aks holda mijozlar bron tasdiqlanganini bilmaydi.
-2. Backend'da muassasa uchun chat endpointlari bo'lishi kerak (`BACKEND_CONTRACT.md` → 10-masala). Aks holda mijoz xabarlari muassasaga yetib bormaydi. Xodimlar uchun ish joyi endpointi ham kerak (0-masala).
+1. Backend'ga `backend-patches/` dagi patch qo'llangan bo'lishi kerak (`BACKEND_CONTRACT.md` → "Backend uchun tayyor patch"). U xavfsizlik teshiklarini yopadi, muassasa chati va xodimlar panelini ishga tushiradi.
+2. Backend'da `APP_CONFIG__PUSH__PROVIDER=expo` o'rnatilgan bo'lishi kerak. Aks holda push faqat logga yoziladi va mijozlar bron tasdiqlanganini bilmaydi.
 3. Domen (`APP_DOMAIN`, standart `bazmly.uz`) tasdiqlangan bo'lishi va universal link fayllari joylangan bo'lishi kerak:
    - `https://bazmly.uz/.well-known/apple-app-site-association`
    - `https://bazmly.uz/.well-known/assetlinks.json`

@@ -128,7 +128,7 @@ export default function HallBookingScreen() {
         guests_count: draft.guests,
         contact_name: draft.contactName.trim(),
         contact_phone: toE164(draft.contactPhone),
-        // Xizmat turi uchun backend'da alohida maydon yo'q — izohga yoziladi (BACKEND_CONTRACT §6)
+        // Xizmat turi uchun backend'da alohida maydon yo'q — izohga yoziladi (BACKEND_CONTRACT → qolgan masalalar §5)
         note: [`${t("booking.service")}: ${modeNote}`, draft.note.trim()].filter(Boolean).join("\n"),
         venue_service_ids: draft.serviceIds.length ? draft.serviceIds : undefined,
       });

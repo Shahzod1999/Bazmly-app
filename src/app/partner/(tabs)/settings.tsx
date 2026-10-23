@@ -42,17 +42,19 @@ export default function PartnerSettings() {
         title={t("tabs.settings")}
         subtitle={`${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim()}
       />
-      <PartnerGate>
+      <PartnerGate need="branch.manage">
         {(venueId) => <VenueForm venueId={venueId} onHours={() => setHoursOpen(true)} />}
       </PartnerGate>
 
       <View style={{ marginTop: 20 }}>
         <ListGroup>
-          <ListRow
-            icon={<Plus size={20} color={colors.text} />}
-            title={t("partner.addVenue")}
-            onPress={() => router.push("/partner/register")}
-          />
+          {ctx.noGroup || (ctx.isGroupScoped && ctx.can("branch.create")) ? (
+            <ListRow
+              icon={<Plus size={20} color={colors.text} />}
+              title={t("partner.addVenue")}
+              onPress={() => router.push("/partner/register")}
+            />
+          ) : null}
           <ListRow
             icon={<Globe size={20} color={colors.text} />}
             title={`${t("profile.language")} · ${t("profile.theme")}`}

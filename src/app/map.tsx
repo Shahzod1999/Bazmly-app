@@ -21,7 +21,7 @@ const DEFAULT_CENTER = { latitude: 41.3111, longitude: 69.2797 };
  * Xarita rejimi.
  * `VenueListItem` da koordinata yo'q, shuning uchun birinchi 30 ta joy uchun `GET /venues/{id}`
  * so'raladi (natija keshlanadi va venue sahifasida qayta ishlatiladi).
- * Taklif: qidiruv javobiga latitude/longitude qo'shish (BACKEND_CONTRACT §6) — shunda bu so'rovlar kerak bo'lmaydi.
+ * Taklif: qidiruv javobiga latitude/longitude qo'shish (BACKEND_CONTRACT → qolgan masalalar §4) — shunda bu so'rovlar kerak bo'lmaydi.
  */
 export default function MapScreen() {
   const { t } = useTranslation();

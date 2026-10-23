@@ -1424,6 +1424,22 @@
        "type": "integer",
        "title": "Group Id"
       }
+     },
+     {
+      "name": "group_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Group Id"
+      }
      }
     ],
     "responses": {
@@ -2245,6 +2261,22 @@
        "minimum": 1,
        "title": "Venue Id"
       }
+     },
+     {
+      "name": "venue_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Venue Id"
+      }
      }
     ],
     "responses": {
@@ -2476,6 +2508,22 @@
        ],
        "title": "Zone Id"
       }
+     },
+     {
+      "name": "venue_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Venue Id"
+      }
      }
     ],
     "responses": {
@@ -2606,6 +2654,22 @@
       "schema": {
        "type": "integer",
        "minimum": 1,
+       "title": "Venue Id"
+      }
+     },
+     {
+      "name": "venue_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
        "title": "Venue Id"
       }
      }
@@ -3123,6 +3187,37 @@
       }
      }
     }
+   }
+  },
+  "/api/v1/venue/staff/me/workplaces": {
+   "get": {
+    "tags": [
+     "venue:staff"
+    ],
+    "summary": "Mening ish joylarim",
+    "description": "Chaqiruvchi ishlaydigan filiallar (yoki butun tarmoq — egasi va admin uchun), roli va huquqlari. Xodim ilovaga kirganda panelini shu orqali ochadi.",
+    "operationId": "venue_staff_my_workplaces",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/StaffWorkplaceRead"
+         },
+         "type": "array",
+         "title": "Response Venue Staff My Workplaces"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ]
    }
   },
   "/api/v1/venue/staff/roles": {
@@ -5167,6 +5262,16 @@
        "minimum": 1,
        "title": "Order Id"
       }
+     },
+     {
+      "name": "venue_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Venue Id"
+      }
      }
     ],
     "responses": {
@@ -5964,6 +6069,275 @@
       "HTTPBearer": []
      }
     ]
+   }
+  },
+  "/api/v1/venue/conversations": {
+   "get": {
+    "tags": [
+     "venue:engagement"
+    ],
+    "summary": "Mijozlar bilan suhbatlar",
+    "description": "Filialga yozilgan suhbatlar: mijoz ismi, oxirgi xabar va muassasa hali o'qimagan xabarlar soni bilan.",
+    "operationId": "venue_conversations_list",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "venue_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Venue Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ConversationListItem"
+         },
+         "title": "Response Venue Conversations List"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/venue/conversations/{conversation_id}/messages": {
+   "get": {
+    "tags": [
+     "venue:engagement"
+    ],
+    "summary": "Suhbat tarixi",
+    "description": "Eng yangisidan boshlab, sahifalab.",
+    "operationId": "venue_conversations_messages",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "conversation_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Conversation Id"
+      }
+     },
+     {
+      "name": "venue_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Venue Id"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 100,
+       "minimum": 1,
+       "default": 20,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/MessageRead"
+         },
+         "title": "Response Venue Conversations Messages"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "venue:engagement"
+    ],
+    "summary": "Mijozga javob yozish",
+    "description": "Xabar muassasa nomidan yuboriladi (`sender_type=venue`).",
+    "operationId": "venue_conversations_send",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "conversation_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Conversation Id"
+      }
+     },
+     {
+      "name": "venue_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Venue Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MessageCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MessageRead"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/venue/conversations/{conversation_id}/read": {
+   "post": {
+    "tags": [
+     "venue:engagement"
+    ],
+    "summary": "Mijoz xabarlarini o'qilgan deb belgilash",
+    "description": "Faqat mijoz yozgan xabarlar belgilanadi.",
+    "operationId": "venue_conversations_mark_read",
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "conversation_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Conversation Id"
+      }
+     },
+     {
+      "name": "venue_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Venue Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "type": "integer"
+         },
+         "title": "Response Venue Conversations Mark Read"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
    }
   },
   "/api/v1/venue/analytics/dashboard": {
@@ -6977,9 +7351,19 @@
       "type": "integer",
       "title": "Venue Id"
      },
+     "venue_name": {
+      "type": "string",
+      "title": "Venue Name",
+      "default": ""
+     },
      "user_id": {
       "type": "integer",
       "title": "User Id"
+     },
+     "user_name": {
+      "type": "string",
+      "title": "User Name",
+      "default": ""
      },
      "booking_id": {
       "anyOf": [
@@ -9941,6 +10325,59 @@
     ],
     "title": "StaffRoleScope"
    },
+   "StaffWorkplaceRead": {
+    "properties": {
+     "venue_group_id": {
+      "type": "integer",
+      "title": "Venue Group Id"
+     },
+     "group_name": {
+      "type": "string",
+      "title": "Group Name"
+     },
+     "venue_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Venue Id"
+     },
+     "venue_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Venue Name"
+     },
+     "role": {
+      "$ref": "#/components/schemas/StaffRoleRead"
+     },
+     "permissions": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Permissions"
+     }
+    },
+    "type": "object",
+    "required": [
+     "venue_group_id",
+     "group_name",
+     "role",
+     "permissions"
+    ],
+    "title": "StaffWorkplaceRead",
+    "description": "One place the caller works: a branch, or a whole chain for a group-scoped\nrole (owner, admin), in which case `venue_id` is null and every branch of the\nchain is theirs.\n\n`permissions` lets the app show only the sections the role can act on — a\nwaiter gets check-in and tables, not the menu builder."
+   },
    "StatsTotalsRead": {
     "properties": {
      "bookings_count": {
@@ -12865,6 +13302,10 @@
   {
    "name": "venue:bookings",
    "description": "Kutilayotgan mijozlar — kunlik navbat."
+  },
+  {
+   "name": "venue:engagement",
+   "description": "Mijozlar bilan suhbatlar — filial tomoni."
   },
   {
    "name": "venue:orders",

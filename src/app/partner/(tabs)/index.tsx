@@ -2,11 +2,11 @@ import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { ArrowDownRight, ArrowUpRight, Bell, ChevronRight } from "lucide-react-native";
+import { ArrowDownRight, ArrowUpRight, Bell, ChevronRight, MessageCircle } from "lucide-react-native";
 import { Card, ErrorState, IconButton, Screen, SectionTitle, Skeleton, Text } from "../../../components/ui";
 import { useTheme } from "../../../theme/ThemeProvider";
 import { radius } from "../../../theme/tokens";
-import { useDashboard, useUnreadCount, useVenueBookings } from "../../../api/queries";
+import { useDashboard, useUnreadCount, useVenueBookings, useVenueConversations } from "../../../api/queries";
 import { BranchHeader } from "../../../features/partner/BranchHeader";
 import { PartnerGate } from "../../../features/partner/PartnerGate";
 import { usePartnerContext } from "../../../features/partner/usePartnerContext";
@@ -18,7 +18,11 @@ export default function PartnerDashboard() {
   const { colors } = useTheme();
   const router = useRouter();
   const ctx = usePartnerContext();
-  const dash = useDashboard(ctx.groupId, ctx.venueId);
+  const canReports = ctx.can("reports.view");
+  // Hisobotlar `reports.view` talab qiladi: ofitsiant yoki qorovulga faqat bugungi bronlar ko'rinadi
+  const dash = useDashboard(ctx.groupId, canReports ? ctx.venueId : undefined);
+  const chats = useVenueConversations(ctx.venueId);
+  const chatUnread = (chats.data ?? []).reduce((n, c) => n + (c.unread_count ?? 0), 0);
   const today = useVenueBookings(ctx.venueId, undefined, toDateOnly(new Date()));
   const unread = useUnreadCount();
   const d = dash.data;
@@ -36,91 +40,100 @@ export default function PartnerDashboard() {
       <BranchHeader
         isOpen={d?.is_open_now}
         right={
-          <IconButton
-            icon={<Bell size={22} color={colors.text} />}
-            accessibilityLabel={t("notifications.title")}
-            badge={unread.data && unread.data > 0 ? unread.data : false}
-            onPress={() => router.push("/notifications")}
-          />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <IconButton
+              icon={<MessageCircle size={22} color={colors.text} />}
+              accessibilityLabel={t("partner.messages")}
+              badge={chatUnread > 0 ? chatUnread : false}
+              onPress={() => router.push("/partner/messages")}
+            />
+            <IconButton
+              icon={<Bell size={22} color={colors.text} />}
+              accessibilityLabel={t("notifications.title")}
+              badge={unread.data && unread.data > 0 ? unread.data : false}
+              onPress={() => router.push("/notifications")}
+            />
+          </View>
         }
       />
       <PartnerGate>
-        {() =>
-          dash.isLoading ? (
-            <View style={{ gap: 12 }}>
-              <Skeleton height={130} radius={24} />
-              <Skeleton height={220} radius={24} />
-            </View>
-          ) : dash.isError || !d ? (
-            <ErrorState error={dash.error} onRetry={() => dash.refetch()} />
-          ) : (
-            <View>
-              <Pressable
-                onPress={() => router.navigate("/partner/bookings")}
-                accessibilityRole="button"
-                style={[styles.queue, { backgroundColor: colors.primary }]}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Text variant="caption" color="rgba(255,255,255,0.85)" style={{ flex: 1 }}>
-                    {t("partner.todayQueue").toUpperCase()}
-                  </Text>
-                  <ChevronRight size={18} color="#fff" />
-                </View>
-                <Text variant="display" color="#fff" style={{ fontSize: 40, lineHeight: 46, marginTop: 6 }}>
-                  {d.queue_count}
-                </Text>
-                {/* Backend: bugungi tasdiqlangan, hali kirmagan bronlar (live_queue_count) */}
-                <Text variant="small" color="rgba(255,255,255,0.85)">
-                  {t("partner.todayQueueHint")}
-                </Text>
-              </Pressable>
-
-              <View style={styles.kpis}>
-                <Kpi
-                  label={t("partner.monthRevenue")}
-                  value={formatMoneyCompact(d.month_revenue, d.currency)}
-                  delta={d.comparison.revenue_delta_percent}
-                />
-                <Kpi
-                  label={t("partner.monthBookings")}
-                  value={groupDigits(d.month_bookings)}
-                  delta={d.comparison.bookings_delta_percent}
-                />
-                <Kpi label={t("partner.avgCheck")} value={formatMoneyCompact(d.avg_check, d.currency)} />
-                <Kpi
-                  label={t("partner.occupancy")}
-                  value={`${Math.round(Number(d.occupancy_percent || 0))}%`}
-                />
+        {() => (
+          <View>
+            {!canReports ? null : dash.isLoading ? (
+              <View style={{ gap: 12 }}>
+                <Skeleton height={130} radius={24} />
+                <Skeleton height={220} radius={24} />
               </View>
-
-              <SectionTitle title={t("partner.weekBookings")} />
-              <Card>
-                <WeekBars week={d.week} />
-              </Card>
-
-              <SectionTitle
-                title={t("partner.today")}
-                action={t("common.seeAll")}
-                onAction={() => router.navigate("/partner/bookings")}
-              />
-              {today.isLoading ? (
-                <Skeleton height={160} radius={20} />
-              ) : !today.data?.length ? (
-                <Card>
-                  <Text variant="body" color="textMuted" align="center">
-                    {t("partner.bookingsEmpty")}
+            ) : dash.isError || !d ? (
+              <ErrorState error={dash.error} onRetry={() => dash.refetch()} />
+            ) : (
+              <View>
+                <Pressable
+                  onPress={() => router.navigate("/partner/bookings")}
+                  accessibilityRole="button"
+                  style={[styles.queue, { backgroundColor: colors.primary }]}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Text variant="caption" color="rgba(255,255,255,0.85)" style={{ flex: 1 }}>
+                      {t("partner.todayQueue").toUpperCase()}
+                    </Text>
+                    <ChevronRight size={18} color="#fff" />
+                  </View>
+                  <Text variant="display" color="#fff" style={{ fontSize: 40, lineHeight: 46, marginTop: 6 }}>
+                    {d.queue_count}
                   </Text>
-                </Card>
-              ) : (
-                <View style={{ gap: 12 }}>
-                  {today.data.slice(0, 3).map((b) => (
-                    <BookingCard key={b.id} booking={b} />
-                  ))}
+                  {/* Backend: bugungi tasdiqlangan, hali kirmagan bronlar (live_queue_count) */}
+                  <Text variant="small" color="rgba(255,255,255,0.85)">
+                    {t("partner.todayQueueHint")}
+                  </Text>
+                </Pressable>
+
+                <View style={styles.kpis}>
+                  <Kpi
+                    label={t("partner.monthRevenue")}
+                    value={formatMoneyCompact(d.month_revenue, d.currency)}
+                    delta={d.comparison.revenue_delta_percent}
+                  />
+                  <Kpi
+                    label={t("partner.monthBookings")}
+                    value={groupDigits(d.month_bookings)}
+                    delta={d.comparison.bookings_delta_percent}
+                  />
+                  <Kpi label={t("partner.avgCheck")} value={formatMoneyCompact(d.avg_check, d.currency)} />
+                  <Kpi
+                    label={t("partner.occupancy")}
+                    value={`${Math.round(Number(d.occupancy_percent || 0))}%`}
+                  />
                 </View>
-              )}
-            </View>
-          )
-        }
+
+                <SectionTitle title={t("partner.weekBookings")} />
+                <Card>
+                  <WeekBars week={d.week} />
+                </Card>
+              </View>
+            )}
+            <SectionTitle
+              title={t("partner.today")}
+              action={t("common.seeAll")}
+              onAction={() => router.navigate("/partner/bookings")}
+            />
+            {today.isLoading ? (
+              <Skeleton height={160} radius={20} />
+            ) : !today.data?.length ? (
+              <Card>
+                <Text variant="body" color="textMuted" align="center">
+                  {t("partner.bookingsEmpty")}
+                </Text>
+              </Card>
+            ) : (
+              <View style={{ gap: 12 }}>
+                {today.data.slice(0, 3).map((b) => (
+                  <BookingCard key={b.id} booking={b} />
+                ))}
+              </View>
+            )}
+          </View>
+        )}
       </PartnerGate>
     </Screen>
   );

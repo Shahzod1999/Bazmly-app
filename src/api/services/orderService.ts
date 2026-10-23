@@ -98,16 +98,16 @@ export const orderService = {
     });
   },
 
-  async getReceipt(orderId: number | string, venueId?: number | string): Promise<ReceiptRead> {
+  async getReceipt(orderId: number | string, venueId: number | string): Promise<ReceiptRead> {
     return apiFetch<ReceiptRead>(`/api/v1/venue/orders/${orderId}/receipt`, {
-      params: venueId ? { venue_id: venueId } : undefined,
+      params: { venue_id: venueId },
     });
   },
 
-  async reprintReceipt(orderId: number | string, venueId?: number | string): Promise<ReceiptRead> {
+  async reprintReceipt(orderId: number | string, venueId: number | string): Promise<ReceiptRead> {
     return apiFetch<ReceiptRead>(`/api/v1/venue/orders/${orderId}/receipt/reprint`, {
       method: "POST",
-      params: venueId ? { venue_id: venueId } : undefined,
+      params: { venue_id: venueId },
     });
   },
 

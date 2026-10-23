@@ -54,6 +54,9 @@ export const qk = {
   notifications: ["notifications"] as const,
   unread: ["unread"] as const,
   conversations: ["conversations"] as const,
+  venueConversations: (venueId?: number) => ["venue-conversations", venueId] as const,
+  venueMessages: (id: number) => ["venue-messages", id] as const,
+  workplaces: ["workplaces"] as const,
   messages: (id: number) => ["messages", id] as const,
   regions: ["regions"] as const,
   districts: (regionId: number) => ["districts", regionId] as const,
@@ -349,6 +352,45 @@ export function useRespondFriend() {
 }
 
 // ---------------- Hamkor ----------------
+
+export function useMyWorkplaces() {
+  const authed = useIsAuthed();
+  return useQuery({
+    queryKey: qk.workplaces,
+    queryFn: () => partnerService.getMyWorkplaces(),
+    enabled: authed,
+    staleTime: 60_000,
+  });
+}
+
+export function useVenueConversations(venueId?: number) {
+  return useQuery({
+    queryKey: qk.venueConversations(venueId),
+    queryFn: () => engagementService.getVenueConversations(venueId!),
+    enabled: !!venueId,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useVenueMessages(conversationId: number, venueId?: number) {
+  return useQuery({
+    queryKey: qk.venueMessages(conversationId),
+    queryFn: () => engagementService.getVenueMessages(conversationId, venueId!),
+    enabled: conversationId > 0 && !!venueId,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useSendVenueMessage(conversationId: number, venueId?: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) => engagementService.sendVenueMessage(conversationId, venueId!, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.venueMessages(conversationId) });
+      void qc.invalidateQueries({ queryKey: ["venue-conversations"] });
+    },
+  });
+}
 
 export function useMyGroup() {
   const authed = useIsAuthed();

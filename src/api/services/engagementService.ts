@@ -63,6 +63,35 @@ export const engagementService = {
     });
   },
 
+  // --- Muassasa tomoni: mijozlar bilan suhbatlar ---
+  async getVenueConversations(venueId: number): Promise<ConversationListItem[]> {
+    return apiFetch<ConversationListItem[]>("/api/v1/venue/conversations", {
+      params: { venue_id: venueId },
+    });
+  },
+
+  async getVenueMessages(conversationId: number, venueId: number): Promise<MessageRead[]> {
+    return apiFetch<MessageRead[]>(`/api/v1/venue/conversations/${conversationId}/messages`, {
+      params: { venue_id: venueId },
+    });
+  },
+
+  async sendVenueMessage(conversationId: number, venueId: number, body: string): Promise<MessageRead> {
+    const payload: MessageCreate = { body };
+    return apiFetch<MessageRead>(`/api/v1/venue/conversations/${conversationId}/messages`, {
+      method: "POST",
+      params: { venue_id: venueId },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async markVenueConversationRead(conversationId: number, venueId: number): Promise<void> {
+    return apiFetch<void>(`/api/v1/venue/conversations/${conversationId}/read`, {
+      method: "POST",
+      params: { venue_id: venueId },
+    });
+  },
+
   // --- Notifications ---
   async getNotifications(limit: number = 20, offset: number = 0): Promise<Page<NotificationRead>> {
     return apiFetch<Page<NotificationRead>>("/api/v1/notifications", {

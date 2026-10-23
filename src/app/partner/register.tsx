@@ -191,7 +191,7 @@ export default function PartnerRegister() {
         setTablesCreated(true);
       }
       // 3) Onboarding qadamlari → `finish` muassasani `active` qiladi (qidiruvda ko'rinadi).
-      // Suratlarni yuklash API'si yo'q (BACKEND_CONTRACT §5) — media qadami bo'sh o'tkaziladi.
+      // Suratlarni yuklash API'si yo'q (BACKEND_CONTRACT → qolgan masalalar §3) — media qadami bo'sh o'tkaziladi.
       await partnerService.onboardingTablesDone(venueId);
       await partnerService.onboardingServicesDone(venueId);
       await partnerService.onboardingMediaDone(venueId);

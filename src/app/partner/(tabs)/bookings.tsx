@@ -74,50 +74,56 @@ function BookingList({ venueId }: { venueId: number }) {
   const confirm = useConfirmBooking();
   const reject = useRejectBooking();
   const checkOut = useCheckOut();
+  const ctx = usePartnerContext();
 
   const onError = (e: unknown) => toast.error(errorMessage(e, t("common.errorGeneric")));
 
   const actions = (b: BookingListItem) => {
     if (b.status === "pending") {
+      if (!ctx.can("bookings.confirm") && !ctx.can("bookings.cancel")) return undefined;
       return (
         <View style={{ flexDirection: "row", gap: 10 }}>
-          <Button
-            title={t("partner.confirm")}
-            size="sm"
-            fullWidth={false}
-            style={{ flex: 1 }}
-            loading={confirm.isPending && confirm.variables?.id === b.id}
-            onPress={() =>
-              confirm.mutate(
-                { id: b.id, venueId },
-                { onSuccess: () => toast.success(t("partner.confirmed")), onError },
-              )
-            }
-          />
-          <Button
-            title={t("partner.reject")}
-            size="sm"
-            variant="danger"
-            fullWidth={false}
-            style={{ flex: 1 }}
-            onPress={async () => {
-              const reason = await promptDialog({
-                title: t("partner.reject"),
-                confirmLabel: t("partner.reject"),
-                destructive: true,
-                input: { label: t("partner.rejectReason") },
-              });
-              if (reason === null) return;
-              reject.mutate(
-                { id: b.id, venueId, reason: reason.trim() || undefined },
-                { onSuccess: () => toast.success(t("partner.rejected")), onError },
-              );
-            }}
-          />
+          {ctx.can("bookings.confirm") ? (
+            <Button
+              title={t("partner.confirm")}
+              size="sm"
+              fullWidth={false}
+              style={{ flex: 1 }}
+              loading={confirm.isPending && confirm.variables?.id === b.id}
+              onPress={() =>
+                confirm.mutate(
+                  { id: b.id, venueId },
+                  { onSuccess: () => toast.success(t("partner.confirmed")), onError },
+                )
+              }
+            />
+          ) : null}
+          {ctx.can("bookings.cancel") ? (
+            <Button
+              title={t("partner.reject")}
+              size="sm"
+              variant="danger"
+              fullWidth={false}
+              style={{ flex: 1 }}
+              onPress={async () => {
+                const reason = await promptDialog({
+                  title: t("partner.reject"),
+                  confirmLabel: t("partner.reject"),
+                  destructive: true,
+                  input: { label: t("partner.rejectReason") },
+                });
+                if (reason === null) return;
+                reject.mutate(
+                  { id: b.id, venueId, reason: reason.trim() || undefined },
+                  { onSuccess: () => toast.success(t("partner.rejected")), onError },
+                );
+              }}
+            />
+          ) : null}
         </View>
       );
     }
-    if (b.status === "checked_in") {
+    if (b.status === "checked_in" && ctx.can("bookings.confirm")) {
       return (
         <Button
           title={t("partner.checkOut")}

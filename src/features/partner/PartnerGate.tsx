@@ -2,15 +2,24 @@ import React from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Store, UserCog } from "lucide-react-native";
+import { Lock, Store, UserCog } from "lucide-react-native";
 import { EmptyState, ErrorState, Skeleton } from "../../components/ui";
 import { useTheme } from "../../theme/ThemeProvider";
-import { usePartnerContext } from "./usePartnerContext";
+import { usePartnerContext, type Permission } from "./usePartnerContext";
 import { useAuth } from "../../stores/auth";
 import { usePrefs } from "../../stores/prefs";
 
-/** Guruh/filial yuklanmaguncha yoki yo'q bo'lsa — mos holatni ko'rsatadi */
-export function PartnerGate({ children }: { children: (venueId: number) => React.ReactNode }) {
+/**
+ * Guruh/filial yuklanmaguncha yoki yo'q bo'lsa — mos holatni ko'rsatadi.
+ * `need` berilsa, rolida bu huquq bo'lmagan xodimga bo'lim yopiqligini aytadi.
+ */
+export function PartnerGate({
+  children,
+  need,
+}: {
+  children: (venueId: number) => React.ReactNode;
+  need?: Permission;
+}) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const router = useRouter();
@@ -25,8 +34,7 @@ export function PartnerGate({ children }: { children: (venueId: number) => React
       </View>
     );
   }
-  // Xodim (venue_staff) tarmoq egasi emas: backend'da xodimning ish joyini qaytaradigan endpoint yo'q
-  // (`/venue/groups/me` faqat egaga ishlaydi — BACKEND_CONTRACT §0). Muassasa yaratish taklif qilinmaydi.
+  // Xodimning faol ish joyi yo'q (ishdan bo'shatilgan yoki eski backend). Muassasa yaratish taklif qilinmaydi.
   if (ctx.noGroup && role === "venue_staff") {
     return (
       <EmptyState
@@ -53,5 +61,14 @@ export function PartnerGate({ children }: { children: (venueId: number) => React
     );
   }
   if (ctx.error || !ctx.venueId) return <ErrorState error={ctx.error} onRetry={ctx.refetch} />;
+  if (need && !ctx.can(need)) {
+    return (
+      <EmptyState
+        icon={<Lock size={30} color={colors.primary} />}
+        title={t("partner.noAccess")}
+        description={t("partner.noAccessHint", { role: ctx.role?.name ?? "" })}
+      />
+    );
+  }
   return <>{children(ctx.venueId)}</>;
 }

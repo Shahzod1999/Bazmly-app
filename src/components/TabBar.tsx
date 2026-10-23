@@ -16,8 +16,8 @@ export interface TabItem {
 
 interface Props extends BottomTabBarProps {
   items: TabItem[];
-  /** Markaziy tugma (tab emas — action) */
-  center: { label: string; onPress: () => void; icon?: React.ReactNode };
+  /** Markaziy tugma (tab emas — action). Berilmasa ko'rsatilmaydi */
+  center?: { label: string; onPress: () => void; icon?: React.ReactNode } | null;
   /** Markaziy tugma nechanchi o'rinda turadi */
   centerIndex?: number;
 }
@@ -78,31 +78,33 @@ export function AppTabBar({ state, emitter, navigateToTab, items, center, center
     >
       <View style={styles.inner}>
         {left.map(renderTab)}
-        <View style={styles.centerSlot}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={center.label}
-            onPress={() => {
-              haptic.light();
-              center.onPress();
-            }}
-            style={({ pressed }) => [
-              styles.centerBtn,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                transform: [{ scale: pressed ? 0.94 : 1 }],
-              },
-            ]}
-          >
-            <View style={[styles.centerInner, { backgroundColor: colors.primarySoft }]}>
-              {center.icon ?? <ScanLine size={26} color={colors.primary} />}
-            </View>
-          </Pressable>
-          <Text variant="caption" color="textSubtle" style={{ marginTop: 2 }}>
-            {center.label}
-          </Text>
-        </View>
+        {center ? (
+          <View style={styles.centerSlot}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={center.label}
+              onPress={() => {
+                haptic.light();
+                center.onPress();
+              }}
+              style={({ pressed }) => [
+                styles.centerBtn,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
+                },
+              ]}
+            >
+              <View style={[styles.centerInner, { backgroundColor: colors.primarySoft }]}>
+                {center.icon ?? <ScanLine size={26} color={colors.primary} />}
+              </View>
+            </Pressable>
+            <Text variant="caption" color="textSubtle" style={{ marginTop: 2 }}>
+              {center.label}
+            </Text>
+          </View>
+        ) : null}
         {right.map(renderTab)}
       </View>
     </View>

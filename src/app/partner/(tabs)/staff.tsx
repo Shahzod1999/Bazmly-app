@@ -22,12 +22,7 @@ import {
   toast,
 } from "../../../components/ui";
 import { useTheme } from "../../../theme/ThemeProvider";
-import {
-  useInviteStaff,
-  useSetStaffActive,
-  useStaff,
-  useStaffRoles,
-} from "../../../api/queries";
+import { useInviteStaff, useSetStaffActive, useStaff, useStaffRoles } from "../../../api/queries";
 import type { StaffInvitationCreated } from "../../../api";
 import { PartnerGate } from "../../../features/partner/PartnerGate";
 import { usePartnerContext } from "../../../features/partner/usePartnerContext";
@@ -76,25 +71,25 @@ export default function PartnerStaff() {
         large
         title={t("tabs.staff")}
         subtitle={
-          staff.data
-            ? t("partner.staffCount", { active: activeCount, total: list.length })
-            : undefined
+          staff.data ? t("partner.staffCount", { active: activeCount, total: list.length }) : undefined
         }
         right={
-          <IconButton
-            icon={<UserPlus size={22} color="#fff" />}
-            variant="primary"
-            accessibilityLabel={t("partner.invite")}
-            onPress={() => {
-              // Lavozim ataylab tanlanmagan: avval birinchi rol — "Egasi" — standart edi va
-              // e'tiborsiz qolsa yangi xodim tarmoq egasi huquqini olardi
-              setForm({ name: "", phone: "", roleId: 0 });
-              setOpen(true);
-            }}
-          />
+          ctx.can("staff.manage") ? (
+            <IconButton
+              icon={<UserPlus size={22} color="#fff" />}
+              variant="primary"
+              accessibilityLabel={t("partner.invite")}
+              onPress={() => {
+                // Lavozim ataylab tanlanmagan: avval birinchi rol — "Egasi" — standart edi va
+                // e'tiborsiz qolsa yangi xodim tarmoq egasi huquqini olardi
+                setForm({ name: "", phone: "", roleId: 0 });
+                setOpen(true);
+              }}
+            />
+          ) : undefined
         }
       />
-      <PartnerGate>
+      <PartnerGate need="staff.manage">
         {() =>
           staff.isLoading ? (
             <Skeleton height={72} />

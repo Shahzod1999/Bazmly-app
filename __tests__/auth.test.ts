@@ -74,7 +74,7 @@ describe("auth store — telefon bilan kirish", () => {
       "POST /auth/password",
       "POST /auth/login",
       "GET /users/me",
-      "GET /venue/groups/me", // hamkor panelga kirish huquqi (tarmoq egasimi)
+      "GET /venue/staff/me/workplaces", // hamkor panelga kirish huquqi (ish joyi bormi)
     ]);
     expect(calls[0].body).toEqual({ new_password: "yangiParol1", current_password: null });
     expect(calls[1].body).toEqual({ phone: "+998901234567", password: "yangiParol1" });
